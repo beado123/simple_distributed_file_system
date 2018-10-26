@@ -95,19 +95,13 @@ func (self *Daemon) ParseRequest(conn net.Conn) {
 	bufferRequest := make([]byte, 64)
 	conn.Read(bufferRequest)
 	request := string(bufferRequest)
-	if request == "put" {
+	if request == "put_file" {
 		self.ReceivePutRequest(conn)
+	} else if request == "get_version" {
+		self.ReceiveGetRequestAndSendFileVersion(conn)
+	} else if request == "get_file" {
+		self.ReceiveGetRequestAndSendFile(conn)
 	}
-}
-
-func getFileId(directoryName string) int{
-	//check if this directory exists
-        if _, err := os.Stat(directoryName); os.IsNotExist(err) {
-                os.Mkdir(directoryName, 0666)
-        }
-        files,_ := ioutil.ReadDir(directoryName)
-        num := len(files) + 1
-	return num
 }
 
 func (self *Daemon) ReceivePutRequest(conn net.Conn) {
@@ -116,8 +110,8 @@ func (self *Daemon) ReceivePutRequest(conn net.Conn) {
 	bufferFileSize := make([]byte, 10)
 	l1, _ := conn.Read(bufferFileSize)
 	fileSize, _ := strconv.ParseInt(string(bufferFileSize[:l1]), 10, 64)
-	l2, _ := conn.Read(bufferDirectoryName[:l2])
-	directoryName := string(bufferDirectoryName)
+	l2, _ := conn.Read(bufferDirectoryName)
+	directoryName := string(bufferDirectoryName[:l2])
 	
 	
 	//get file name
@@ -134,7 +128,7 @@ func (self *Daemon) ReceivePutRequest(conn net.Conn) {
 	var receivedBytes int64
 	for true {
 		if (fileSize - receivedBytes) < BUFFERSIZE {
-			io.CopyN(newFile, connection, (fileSize - receivedBytes))
+			io.CopyN(newFile, conn, (fileSize - receivedBytes))
 			conn.Read(make([]byte, (receivedBytes+BUFFERSIZE)-fileSize))
 			break
 		}
@@ -173,23 +167,20 @@ func (self *Daemon) SendPutRequest(cmd string) {
 	wg.Add(len(reqArr))
 	for _, id := range reqArr {
 		go func(id string, cmd string) {
-			if id == vmId {
+			localFileName, sdfsFileName := ParsePutRequest(cmd)
+			if id == self.VmId {
 				//move local file to sdfs
-				reqArr := strings.Split(cmd, " ")
-                        	localFileName := reqArr[1]
-                        	sdfsFileName := reqArr[2]
 				num := getFileId(sdfsFileName)
-				reqArr = strings.Split(sdfsFileName, "/")
+				reqArr := strings.Split(sdfsFileName, "/")
         			fileName := sdfsFileName + "/" + reqArr[1] + "_" + strconv.Itoa(num)
-				from, _ := os.Open(localFileName)
-  				defer from.Close()
-  				to, _ := os.Create(fileName)
-  				defer to.Close()
-  				_, _ = io.Copy(to, from)
-				count += 1
+				err := FileCopy(localFileName, fileName)
+				if err == nil {
+					count += 1
+				}
 				wg.Done()
 				return
 			}
+
 			name := "fa18-cs425-g69-" + id + ".cs.illinois.edu"
 			conn, err := net.Dial("tcp", name + ":" + self.PortNum)
 			if err != nil {
@@ -198,17 +189,13 @@ func (self *Daemon) SendPutRequest(cmd string) {
                 		return
         		}
 			defer conn.Close()
-
-			//read from localfile 
-			reqArr := strings.Split(cmd, " ")
-			request := reqArr[0]
-                        localFileName := reqArr[1]
-                        sdfsFileName := reqArr[2]
+			//read from localfile
+			request := "put_file"
 			file, err := os.Open(localFileName)
-				if err != nil {
-					fmt.Println(err)
-					wg.Done()
-					return
+			if err != nil {
+				fmt.Println(err)
+				wg.Done()
+				return
 			}
 			fileInfo, err := file.Stat()
 			if err != nil {
@@ -254,22 +241,28 @@ func (self *Daemon) SendPutRequest(cmd string) {
 	}
 }
 
-func (self *Daemon) ReceiveGetRequestAndSendFileName(conn net.Conn) {
-	
+func (self *Daemon) ReceiveGetRequestAndSendFileVersion(conn net.Conn) {
+	defer conn.Close()
+	//find file name
+	bufferDirectoryName := make([]byte, 64)
+	reqLen, _ := conn.Read(bufferDirectoryName)
+	directoryName := string(bufferDirectoryName[:reqLen])
+	num := getFileId(directoryName)
+	version := strconv.Itoa(num - 1)
+	conn.Write([]byte(version))
 }
 
 func (self *Daemon) ReceiveGetRequestAndSendFile(conn net.Conn) {
 	defer conn.Close()
+	//find file name
 	bufferDirectoryName := make([]byte, 64)
-        bufferFileSize := make([]byte, 10)
-        l1, _ := conn.Read(bufferFileSize)
-        fileSize, _ := strconv.ParseInt(string(bufferFileSize[:l1]), 10, 64)
-        l2, _ := conn.Read(bufferDirectoryName[:l2])
-        directoryName := string(bufferDirectoryName)
+        reqLen, _ := conn.Read(bufferDirectoryName)
+        directoryName := string(bufferDirectoryName[:reqLen])
 	num := getFileId(directoryName)
         reqArr := strings.Split(directoryName, "/")
         fileName := directoryName + "/" + reqArr[1] + "_" + strconv.Itoa(num - 1)
 
+	//read file
 	file, err := os.Open(fileName)
         if err != nil {
         	fmt.Println(err)
@@ -313,13 +306,135 @@ func (self *Daemon) SendGetRequest(cmd string) {
         reqArr := strings.Split(string(buf[:reqLen]), " ")
         conn.Close()
 
+	//connect to each replica host
 	var wg sync.WaitGroup
-        var count := 0
+      	latestVersion := 0
+	vmId := 0
         wg.Add(len(reqArr))
         for _, id := range reqArr {
                 go func(id string, cmd string) {
-			
+			localFileName, sdfsFileName := ParseGetRequest(cmd)
+			if id == self.VmId {
+				num := getFileId(sdfsFileName)
+				currVersion := num - 1
+				if currVersion > latestVersion {
+                                	latestVersion = currVersion
+                                	vmId = id
+	                        }
+				wg.Done()
+				return
+			}
+
+			name := "fa18-cs425-g69-" + id + ".cs.illinois.edu"
+                        conn, err := net.Dial("tcp", name + ":" + self.PortNum)
+                        if err != nil {
+                                fmt.Println(err)
+                                wg.Done()
+                                return
+                        }
+                        defer conn.Close()			
+                        request := "get_version"
+			conn.Write([]byte(request))
+                        conn.Write([]byte(sdfsFileName))
+
+			bufferFileVersion := make([]byte, 64)	
+			reqLen, _ := conn.Read(bufferFileVersion)
+			currVersion := strconv.Atoi(string(bufferFileVersion[:reqLen]))
+			if currVersion > latestVersion {
+				latestVersion = currVersion
+				vmId = id
+			}
+			wg.Done()
 		}(id, cmd)
         }
         wg.Wait()	
+	
+	//connect the latest replica
+	if self.VmId == vmId {
+		num := getFileId(sdfsFileName)
+                reqArr = strings.Split(sdfsFileName, "/")
+                fileName := sdfsFileName + "/" + reqArr[1] + "_" + strconv.Itoa(num)
+               	FileCopy(fileName, localFileName)
+		return 
+	}
+	name := "fa18-cs425-g69-" + vmId + ".cs.illinois.edu"
+        conn, err := net.Dial("tcp", name + ":" + self.PortNum)
+        if err != nil {
+        	fmt.Println(err)
+        	return
+        }
+        defer conn.Close()	
+	localFileName, sdfsFileName := ParseGetRequest(cmd)
+	request := "get_file"
+	conn.Write([]byte(request))
+	conn.Write([]byte(sdfsFileName))
+	bufferFileSize := make([]byte, 10)
+        reqLen, _ := conn.Read(bufferFileSize)
+        fileSize, _ := strconv.ParseInt(string(bufferFileSize[:reqLen]), 10, 64)
+	
+	//create new file
+	newFile, err := os.Create(localFileName)
+        if err != nil {
+                panic(err)
+        }
+        defer newFile.Close()
+        var receivedBytes int64
+        for true {
+                if (fileSize - receivedBytes) < BUFFERSIZE {
+                        io.CopyN(newFile, conn, (fileSize - receivedBytes))
+                        conn.Read(make([]byte, (receivedBytes+BUFFERSIZE)-fileSize))
+                        break
+                }
+                io.CopyN(newFile, conn, BUFFERSIZE)
+                receivedBytes += BUFFERSIZE
+        }
+	fmt.Println("Received file completely!")
+}
+
+//////////////////////////helper function////////////////////////////////////////////////
+func FileCopy(source string, destination string) error{
+	from, err := os.Open(source)
+  	if err != nil {
+    		fmt.Println(err)
+		return err
+  	}
+  	defer from.Close()
+
+  	to, err := os.Create(destination)
+  	if err != nil {
+    		fmt.Println(err)
+		return err
+  	}
+  	defer to.Close()
+
+  	_, err = io.Copy(to, from)
+  	if err != nil {
+    		fmt.Println(err)
+		return err
+  	}
+	return err
+}
+
+func ParsePutRequest(cmd string) (localFileName string, sdfsFileName string) {
+	reqArr := strings.Split(cmd, " ")
+        localFileName := reqArr[1]
+        sdfsFileName := reqArr[2]
+	return 
+}
+
+func ParseGetRequest(cmd string) (localFileName string, sdfsFileName string) {
+        reqArr := strings.Split(cmd, " ")
+        localFileName := reqArr[2]
+        sdfsFileName := reqArr[1]
+        return
+}
+
+func getFileId(directoryName string) int{
+        //check if this directory exists
+        if _, err := os.Stat(directoryName); os.IsNotExist(err) {
+                os.Mkdir(directoryName, 0666)
+        }
+        files,_ := ioutil.ReadDir(directoryName)
+        num := len(files) + 1
+        return num
 }
