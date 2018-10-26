@@ -97,7 +97,7 @@ func (self *Daemon) ParseRequest(conn net.Conn) {
 	request := string(bufferRequest)
 	if request == "put_file" {
 		self.ReceivePutRequest(conn)
-	} else if request == "get_version" {
+	} else if request == "get_id" {
 		self.ReceiveGetRequestAndSendFileVersion(conn)
 	} else if request == "get_file" {
 		self.ReceiveGetRequestAndSendFile(conn)
@@ -115,7 +115,7 @@ func (self *Daemon) ReceivePutRequest(conn net.Conn) {
 	
 	
 	//get file name
-	num := getFileId(directoryName)
+	num := GetFileId(directoryName)
 	reqArr := strings.Split(directoryName, "/")
 	fileName := directoryName + "/" + reqArr[1] + "_" + strconv.Itoa(num)
 
@@ -170,7 +170,7 @@ func (self *Daemon) SendPutRequest(cmd string) {
 			localFileName, sdfsFileName := ParsePutRequest(cmd)
 			if id == self.VmId {
 				//move local file to sdfs
-				num := getFileId(sdfsFileName)
+				num := GetFileId(sdfsFileName)
 				reqArr := strings.Split(sdfsFileName, "/")
         			fileName := sdfsFileName + "/" + reqArr[1] + "_" + strconv.Itoa(num)
 				err := FileCopy(localFileName, fileName)
@@ -247,7 +247,7 @@ func (self *Daemon) ReceiveGetRequestAndSendFileVersion(conn net.Conn) {
 	bufferDirectoryName := make([]byte, 64)
 	reqLen, _ := conn.Read(bufferDirectoryName)
 	directoryName := string(bufferDirectoryName[:reqLen])
-	num := getFileId(directoryName)
+	num := GetFileId(directoryName)
 	version := strconv.Itoa(num - 1)
 	conn.Write([]byte(version))
 }
@@ -258,7 +258,7 @@ func (self *Daemon) ReceiveGetRequestAndSendFile(conn net.Conn) {
 	bufferDirectoryName := make([]byte, 64)
         reqLen, _ := conn.Read(bufferDirectoryName)
         directoryName := string(bufferDirectoryName[:reqLen])
-	num := getFileId(directoryName)
+	num := GetFileId(directoryName)
         reqArr := strings.Split(directoryName, "/")
         fileName := directoryName + "/" + reqArr[1] + "_" + strconv.Itoa(num - 1)
 
@@ -315,7 +315,7 @@ func (self *Daemon) SendGetRequest(cmd string) {
                 go func(id string, cmd string) {
 			localFileName, sdfsFileName := ParseGetRequest(cmd)
 			if id == self.VmId {
-				num := getFileId(sdfsFileName)
+				num := GetFileId(sdfsFileName)
 				currVersion := num - 1
 				if currVersion > latestVersion {
                                 	latestVersion = currVersion
@@ -333,7 +333,7 @@ func (self *Daemon) SendGetRequest(cmd string) {
                                 return
                         }
                         defer conn.Close()			
-                        request := "get_version"
+                        request := "get_id"
 			conn.Write([]byte(request))
                         conn.Write([]byte(sdfsFileName))
 
@@ -351,7 +351,7 @@ func (self *Daemon) SendGetRequest(cmd string) {
 	
 	//connect the latest replica
 	if self.VmId == vmId {
-		num := getFileId(sdfsFileName)
+		num := GetFileId(sdfsFileName)
                 reqArr = strings.Split(sdfsFileName, "/")
                 fileName := sdfsFileName + "/" + reqArr[1] + "_" + strconv.Itoa(num)
                	FileCopy(fileName, localFileName)
@@ -391,7 +391,165 @@ func (self *Daemon) SendGetRequest(cmd string) {
 	fmt.Println("Received file completely!")
 }
 
-//////////////////////////helper function////////////////////////////////////////////////
+func (self *Daemon) ReceiveDeleteRequest(conn net.Conn) {
+	defer conn.Close()
+	bufferDirectoryName := make([]byte, 64)
+	reqLen, _ := conn.Read(bufferDirectoryName)
+	directoryName := string(bufferDirectoryName[:reqLen])
+	err := DeleteSdfsfile(directoryName)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}	
+	response := "deleteACK"
+	conn.Write([]byte(response))
+}
+
+func (self *Daemon) SendDeleteRequest(cmd string) {
+	//connect to master
+        conn, err := net.Dial("tcp", self.Master + ":" + self.PortNum)
+        if err != nil {
+                fmt.Println(err)
+                return
+        }
+
+        //send to socket
+        fmt.Fprintf(conn, cmd)
+
+        //read message from socket
+        buf := make([]byte, 64)
+        reqLen, err := conn.Read(buf)
+        if err != nil {
+                fmt.Println(err)
+                return
+        }
+        reqArr := strings.Split(string(buf[:reqLen]), " ")
+        conn.Close()
+
+	var wg sync.WaitGroup
+	var count := 0
+        wg.Add(len(reqArr))
+        for _, id := range reqArr {
+                go func(id string, cmd string) {
+			sdfsFileName := ParseDeleteRequest(cmd)
+			if id == self.VmId {
+				err := DeleteSdfsfile(sdfsFileName)
+				if err == nil {
+					count += 1
+				}
+				wg.Done()
+				return
+			}
+
+			name := "fa18-cs425-g69-" + id + ".cs.illinois.edu"
+                        conn, err := net.Dial("tcp", name + ":" + self.PortNum)
+                        if err != nil {
+                                fmt.Println(err)
+                                wg.Done()
+                                return
+                        }
+                        defer conn.Close()
+
+			request := "delete_file"
+			conn.Write([]byte(request))
+                        conn.Write([]byte(sdfsFileName))
+			
+			//receive deleteACK from replica
+			buf := make([]byte, 64)
+		        reqLen, err := conn.Read(buf)
+        		if err != nil {
+                		fmt.Println(err)
+				wg.Done()
+                		return
+        		}
+			response := string(buf[:reqLen])
+			if response == "deleteACK" {
+				count += 1
+			}			
+			wg.Done()
+                }(id, cmd)
+        }
+        wg.Wait()
+	
+	//check if receive all deleteACK
+	if count == len(reqArr) {
+		fmt.Println("delete successfully!")
+	} else {
+		fmt.Println("delete fail!")
+	}
+}
+
+func (self *Daemon) SendLsRequest(cmd string) {
+	//connect to master
+        conn, err := net.Dial("tcp", self.Master + ":" + self.PortNum)
+        if err != nil {
+                fmt.Println(err)
+                return
+        }
+	defer conn.Close()
+
+        //send to socket
+        fmt.Fprintf(conn, cmd)
+
+        //read message from socket
+        buf := make([]byte, 64)
+        reqLen, err := conn.Read(buf)
+        if err != nil {
+                fmt.Println(err)
+                return
+        }
+        reqArr := strings.Split(string(buf[:reqLen]), " ")
+	for _, id := range reqArr {
+		name := "fa18-cs425-g69-" + id + ".cs.illinois.edu"
+		fmt.Println(name)
+	}
+}
+
+func (self *Daemon) StoreRequest() {
+	files, err := ioutil.ReadDir("./sdfs")
+    	if err != nil {
+        	fmt.Println(err)
+		return
+    	}
+    	for _, f := range files {
+        	fmt.Println(f.Name())
+    	}
+}
+
+func (self *Daemon) SendGetVersionRequest(cmd string) {
+	//connect to master
+        conn, err := net.Dial("tcp", self.Master + ":" + self.PortNum)
+        if err != nil {
+                fmt.Println(err)
+                return
+        }
+
+        //send to socket
+        fmt.Fprintf(conn, cmd)
+
+        //read message from socket
+        buf := make([]byte, 64)
+        reqLen, err := conn.Read(buf)
+        if err != nil {
+                fmt.Println(err)
+                return
+        }
+        reqArr := strings.Split(string(buf[:reqLen]), " ")
+        conn.Close()
+
+	var wg sync.WaitGroup
+        for _, id := range reqArr {
+                go func(id string, cmd string) {
+			if id == self.VmId {
+							
+			}
+			
+			wg.Done()		
+		}(id, cmd)
+        }
+        wg.Wait()		
+}
+////////////////////helper function////////////////////////////////////////////////
 func FileCopy(source string, destination string) error{
 	from, err := os.Open(source)
   	if err != nil {
@@ -429,7 +587,21 @@ func ParseGetRequest(cmd string) (localFileName string, sdfsFileName string) {
         return
 }
 
-func getFileId(directoryName string) int{
+func ParseDeleteRequest(cmd string) (sdfsFileName string) {
+	reqArr := strings.Split(cmd, " ")
+	sdfsFileName := reqArr[1]
+	return
+}
+
+func ParseGetVersionRequest(cmd string) (localFileName string, sdfsFileName string, num string) {
+        reqArr := strings.Split(cmd, " ")
+        localFileName := reqArr[3]
+        sdfsFileName := reqArr[1]
+	num := reqArr[2]
+        return
+}
+
+func GetFileId(directoryName string) int{
         //check if this directory exists
         if _, err := os.Stat(directoryName); os.IsNotExist(err) {
                 os.Mkdir(directoryName, 0666)
@@ -438,3 +610,10 @@ func getFileId(directoryName string) int{
         num := len(files) + 1
         return num
 }
+
+func DeleteSdfsfile(directoryName string) error{
+	err := os.Remove(path)
+	return err	
+}
+
+
