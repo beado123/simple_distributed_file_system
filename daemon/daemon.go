@@ -103,7 +103,11 @@ func (self *Daemon) ParseRequest(conn net.Conn) {
 		self.ReceiveGetRequestAndSendFile(conn)
 	} else if request == "delete_file" {
 		self.ReceiveDeleteRequest(conn)
-	} 
+	} else if request == "PING" {
+
+	} else if request == "List" {
+
+	}
 }
 
 func (self *Daemon) ReceivePutRequest(conn net.Conn) {
@@ -114,9 +118,10 @@ func (self *Daemon) ReceivePutRequest(conn net.Conn) {
 	fileSize, _ := strconv.ParseInt(string(bufferFileSize[:l1]), 10, 64)
 	l2, _ := conn.Read(bufferFileName)
 	fileName := string(bufferFileName[:l2])
+	fullPath := "sdfs/" + fileName
 
 	//create new file
-	newFile, err := os.Create(fileName)
+	newFile, err := os.Create(fullPath)
 	if err != nil {
 		panic(err)
 	}
@@ -170,12 +175,13 @@ func (self *Daemon) SendPutRequest(cmd string) {
 	for _, id := range reqArr {
 		go func(id string, cmd string, num string) {
 			localFileName, sdfsFileName := ParsePutRequest(cmd)
-			reqArr := strings.Split(sdfsFileName, "/")
-                        fileName := "sdfs/" + num + "_" + reqArr[1]
+                        fileName := num + "_" + sdfsFileName
+			localFullPath := "local/" + localFileName
+			sdfsFullPath := "sdfs/" + fileName
 
 			if id == self.VmId {
 				//move local file to sdfs
-				err := FileCopy(localFileName, fileName)
+				err := FileCopy(localFullPath, sdfsFullPath)
 				if err == nil {
 					count += 1
 				}
@@ -191,9 +197,10 @@ func (self *Daemon) SendPutRequest(cmd string) {
                 		return
         		}
 			defer conn.Close()
+
 			//read from localfile
 			request := "put_file"
-			file, err := os.Open(localFileName)
+			file, err := os.Open(localFullPath)
 			if err != nil {
 				fmt.Println(err)
 				wg.Done()
@@ -243,6 +250,7 @@ func (self *Daemon) SendPutRequest(cmd string) {
 	}
 }
 
+//This function receives sdfs file name and return the latest version
 func (self *Daemon) ReceiveGetRequestAndSendFileVersion(conn net.Conn) {
 	defer conn.Close()
 	//find file name
@@ -253,15 +261,17 @@ func (self *Daemon) ReceiveGetRequestAndSendFileVersion(conn net.Conn) {
 	conn.Write([]byte(version))
 }
 
+//This function receives sdfs file name and return the file size and the file content
 func (self *Daemon) ReceiveGetRequestAndSendFile(conn net.Conn) {
 	defer conn.Close()
 	//find file name
 	bufferFileName := make([]byte, 64)
         reqLen, _ := conn.Read(bufferFileName)
         fileName := string(bufferFileName[:reqLen])
+	fullPath := "sdfs/" + fileName
 
 	//read file
-	file, err := os.Open(fileName)
+	file, err := os.Open(fullPath)
         if err != nil {
         	fmt.Println(err)
                	return
@@ -312,6 +322,9 @@ func (self *Daemon) SendGetRequest(cmd string) {
         for _, id := range reqArr {
                 go func(id string, cmd string) {
 			localFileName, sdfsFileName := ParseGetRequest(cmd)
+			fileName := num + "_" + sdfsFileName
+                        localFullPath := "local/" + localFileName
+                        sdfsFullPath := "sdfs/" + fileName
 			if id == self.VmId {
 				version := GetFileLatestVersion(sdfsFileName)
 				currVersion, _ := strconv.Atoi(version)
@@ -333,7 +346,7 @@ func (self *Daemon) SendGetRequest(cmd string) {
                         defer conn.Close()			
                         request := "get_id"
 			conn.Write([]byte(request))
-                        conn.Write([]byte(sdfsFileName))
+                        conn.Write([]byte(fileName))
 
 			bufferFileVersion := make([]byte, 64)	
 			reqLen, _ := conn.Read(bufferFileVersion)
@@ -348,11 +361,12 @@ func (self *Daemon) SendGetRequest(cmd string) {
         wg.Wait()	
 	
 	localFileName, sdfsFileName := ParseGetRequest(cmd)
-	reqArr = strings.Split(sdfsFileName, "/")
-	fileName := reqArr[0] + "/" + latestVersion + "_" + reqArr[1]
+	fileName := num + "_" + sdfsFileName
+        localFullPath := "local/" + localFileName
+        sdfsFullPath := "sdfs/" + fileName
 	//connect the latest replica
 	if self.VmId == vmId {
-               	FileCopy(fileName, localFileName)
+               	FileCopy(sdfsFullPath, localFullPath)
 		return 
 	}
 	name := "fa18-cs425-g69-" + vmId + ".cs.illinois.edu"
@@ -370,7 +384,7 @@ func (self *Daemon) SendGetRequest(cmd string) {
         fileSize, _ := strconv.ParseInt(string(bufferFileSize[:reqLen]), 10, 64)
 	
 	//create new file
-	newFile, err := os.Create(localFileName)
+	newFile, err := os.Create(localFullPath)
         if err != nil {
                 panic(err)
         }
@@ -508,12 +522,14 @@ func (self *Daemon) StoreRequest() {
         	fmt.Println(err)
 		return
     	}
-	name := ""
+	m = make(map[string]int)
     	for _, f := range files {
 		reqArr := strings.Split(f.Name(), "_")
-		if reqArr[1] != name {
+		if _, ok := m[reqArr[1]]; ok {
+			
+		} else {
+			m[reqArr[1]] := 0
 			fmt.Println(reqArr[1])
-			name = reqArr[1]
 		}
     	}
 }
@@ -603,9 +619,7 @@ func ParseGetVersionRequest(cmd string) (localFileName string, sdfsFileName stri
         return
 }
 
-func GetFileLatestVersion(sdfsFileName string) string{
-	reqArr := strings.Split(sdfsFileName, "/")
-	fileName := reqArr[1]
+func GetFileLatestVersion(fileName string) string{
 	version := 0
 	files,_ := ioutil.ReadDir("sdfs")
 	for _, file := range files {
@@ -619,14 +633,12 @@ func GetFileLatestVersion(sdfsFileName string) string{
 	return strconv.Itoa(version)
 }
 
-func DeleteSdfsfile(sdfsFileName string) error{
-	reqArr := strings.Split(sdfsFileName, "/")
-        fileName := reqArr[1]
+func DeleteSdfsfile(fileName string) error{
 	files,_ := ioutil.ReadDir("sdfs")
         for _, file := range files {
                 if strings.HasSuffix(file.Name(), fileName) == true {
-			path := "sdfs/" + file.Name()
-			err := os.Remove(path)
+			fullPath := "sdfs/" + file.Name()
+			err := os.Remove(fullPath)
 			if err != nil {
 				return err
 			}
@@ -635,4 +647,16 @@ func DeleteSdfsfile(sdfsFileName string) error{
 	return err
 }
 
+func (self *Daemon) CleanOutSdfs() {
+	if _, err := os.Stat("sdfs"); os.IsNotExist(err) {
+    		os.Mkdir("sdfs", 0666)
+	} else {
+		files,_ := ioutil.ReadDir("sdfs")
+	        for _, file := range files {
+			fullPath := "sdfs/" + file.Name()
+			os.Remove(fullPath)
+		}
+	}
+}
 
+////////////////////////////mp2 function///////////////////////////////
