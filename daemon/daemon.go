@@ -101,7 +101,9 @@ func (self *Daemon) ParseRequest(conn net.Conn) {
 		self.ReceiveGetRequestAndSendFileVersion(conn)
 	} else if request == "get_file" {
 		self.ReceiveGetRequestAndSendFile(conn)
-	}
+	} else if request == "delete_file" {
+		self.ReceiveDeleteRequest(conn)
+	} 
 }
 
 func (self *Daemon) ReceivePutRequest(conn net.Conn) {
