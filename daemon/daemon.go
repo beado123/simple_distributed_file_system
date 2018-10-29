@@ -9,9 +9,7 @@ import (
     "io/ioutil"
     "sync"
     "io"
-    "log"
     "os"
-    "math/rand"
 )
 
 const BUFFERSIZE = 1024
@@ -26,29 +24,37 @@ type Daemon struct {
 	VmId string
 	VmIpAddress string
 	Ln *Listener
-	PortNum string
+	Ser *net.UDPConn
 	MembershipList map[string]*Node
 	IsActive bool
-	//MW io.Writer
 	Master string
 	MyMutex *sync.Mutex
 }
 
-func NewDaemon(port string, id string) (d *Daemon, err error) {
+func NewDaemon(id string) (d *Daemon, err error) {
 	ip_address := getIPAddrAndLogfile()
 	vm_id := ip_address[15:17]
-	l, err := net.Listen("tcp", ip_address + ":" + port)
+	l, err := net.Listen("tcp", ip_address + ":5678")
 	if err != nil {
 		fmt.Println(err)
                 return
 	}
+	addr := net.UDPAddr{
+        	Port: 3456,
+        	IP: net.ParseIP(ip_address),
+    	}
+	ser, err := net.ListenUDP("udp", &addr)
+	if err != nil {
+        	fmt.Println(err)
+        	return
+    	}
 	master := "fa18-cs425-g69-" + id + ".cs.illinois.edu"
 	mutex := &sync.Mutex{}
 	d = &Daemon {
 		VmId: vm_id,
 		VmIpAddress: ip_address,
 		Ln: l,
-		PortNum: port,
+		Ser: ser,
 		MembershipList: make(map[string]*Node),
 		IsActive: true,
 		//MW: mw,
@@ -75,7 +81,7 @@ func getIPAddrAndLogfile() string{
 	return ip
 }
 
-func (self *Daemon) DaemonListen() {
+func (self *Daemon) DaemonListenTCP() {
 	if self.IsActive == false {
 		return
 	}
@@ -103,10 +109,6 @@ func (self *Daemon) ParseRequest(conn net.Conn) {
 		self.ReceiveGetRequestAndSendFile(conn)
 	} else if request == "delete_file" {
 		self.ReceiveDeleteRequest(conn)
-	} else if request == "PING" {
-
-	} else if request == "List" {
-
 	}
 }
 
@@ -534,9 +536,9 @@ func (self *Daemon) StoreRequest() {
     	}
 }
 
-/*func (self *Daemon) SendGetVersionRequest(cmd string) {
+func (self *Daemon) SendGetVersionRequest(cmd string) {
 	//connect to master
-        conn, err := net.Dial("tcp", self.Master + ":" + self.PortNum)
+        /*conn, err := net.Dial("tcp", self.Master + ":" + self.PortNum)
         if err != nil {
                 fmt.Println(err)
                 return
@@ -565,8 +567,8 @@ func (self *Daemon) StoreRequest() {
 			wg.Done()		
 		}(id, cmd)
         }
-        wg.Wait()		
-}*/
+        wg.Wait()*/		
+}
 ////////////////////helper function////////////////////////////////////////////////
 func FileCopy(source string, destination string) error{
 	from, err := os.Open(source)
@@ -660,3 +662,200 @@ func (self *Daemon) CleanOutSdfs() {
 }
 
 ////////////////////////////mp2 function///////////////////////////////
+func (self *Daemon) DaemonListenUDP() {
+	if self.IsActive == false {
+		return
+	}
+	buf := make([]byte, 1024)
+	for true {
+		reqLen, client_addr, err := self.Ser.ReadFromUDP(buf)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		reqArr := strings.Split(string(buf[:reqLen]), " ")	
+		if reqArr[0] == "PING" {
+			go self.ResponsePING(client_addr, reqArr)			
+		} else if reqArr[0] == "LIST" {
+			go self.ResponseLIST(reqArr)
+		
+	}
+}
+
+//This function sends ACK back to pinger
+func (self *Daemon) ResponsePING(addr *net.UDPAddr, reqArr []string) {
+	if _, ok := self.PingerList[reqArr[1]]; ok {
+		self.PingerList[reqArr[1]].State = 1
+        	self.PingerList[reqArr[1]].T = time.Now()
+        } else {
+		self.AddNewPinger(reqArr[1])
+	}
+	_, err := self.Ser.WriteToUDP([]byte("ACK"), addr)
+	if err != nil { 
+		fmt.Println(err)
+	}
+}
+
+//This function updates timestamp in membership list
+func (self *Daemon) ResponseACK(conn net.Conn, id string) {
+	buf := make([]byte, 1024)
+	reqLen, err := conn.Read(buf)
+	if err != nil {
+                fmt.Println(err)
+                return
+        }
+	reqArr := strings.Split(string(buf[:reqLen]), " ")
+	if reqArr[0] == "ACK" {
+		if _, ok := self.MembershipList[id]; ok {
+			self.MembershipList[id].T = time.Now()
+		}
+	}
+	conn.Close()
+}
+
+//This function adds new member into membership list
+func (self *Daemon) AddNewMember (id string) (member *Node) {
+	member = new(Node)
+	member.Id = id
+	member.State = 1
+	member.T = time.Now()
+	self.MembershipList[id] = member
+	return
+}
+
+//This function updates membership list
+func (self *Daemon) ResponseLIST(reqArr []string) {
+	self.MyMutex.Lock()
+	for id, _ := range self.MembershipList {
+		self.MembershipList[id].State = 0	
+	}
+	for i, id := range reqArr {
+        	if i == 0 {
+                	continue
+                }
+                check := 0
+		if _, ok := self.MembershipList[id]; ok {
+			self.MembershipList[id].State = 1
+                        self.MembershipList[id].T = time.Now()
+			check = 1
+                }
+                if check == 0 {
+                	self.AddNewMember(id)
+                }
+        }
+	self.MyMutex.Unlock()
+}
+
+//This function tells introducer failure machine
+func (self *Daemon) SendDOWN(id string) {
+	conn, err := net.Dial("udp", self.Introducer + ":3456")
+        if err != nil {
+                fmt.Println(err)
+                return
+        }
+        msg := "DOWN " + id
+	down_buffer := []byte(msg)
+        _, err = conn.Write(down_buffer)
+        if err != nil {
+                fmt.Println(err)
+                return
+        }
+	conn.Close()
+}
+
+//This function pings to members in membership list
+func (self *Daemon) PingToMembers() {
+	if self.IsActive == false {
+                return
+        }
+	for true {
+		for _, curr_node := range self.MembershipList {
+			self.MyMutex.Lock()
+			if curr_node.State == 0 {
+				self.MyMutex.Unlock()
+				continue;
+			}
+			self.MyMutex.Unlock()
+			member_address := "fa18-cs425-g69-" + curr_node.Id + ".cs.illinois.edu:3456"
+			conn, err := net.Dial("udp", member_address)
+			if err != nil {
+                        	fmt.Println(err)
+                        	continue
+                        }
+			msg := "PING " + self.Vm_id
+			buf := []byte(msg)
+			_, err = conn.Write(buf)
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			go self.ResponseACK(conn, curr_node.Id)		
+			
+		}
+		time.Sleep(time.Millisecond * 500)
+	}
+}
+
+//This function print the membership list
+func (self *Daemon) PrintMembershipList() {
+	fmt.Print("Membership list: [", " ")
+	for id, _ := range self.MembershipList {
+		if self.MembershipList[id].State == 1 {
+			fmt.Print(id, " ")
+		}
+	}
+	fmt.Println("]")
+}
+
+//This function checks if any members in membership list time out
+func (self *Daemon) TimeOutCheck() {
+	if self.IsActive == false {
+                return
+        }
+	for true {
+		for id, curr_node := range self.MembershipList {
+			self.MyMutex.Lock()
+			if curr_node.State == 0 {
+				self.MyMutex.Unlock()
+				continue;
+			} else {	
+				self.MyMutex.Unlock()
+				elipsed := time.Now().Sub(curr_node.T).Seconds()
+				if elipsed > 0.75 {
+					self.MyMutex.Lock()
+					self.MembershipList[id].State = 0	
+					self.MyMutex.Unlock()
+					go self.SendDOWN(id)
+				}
+			}
+		}
+		time.Sleep(time.Millisecond * 500)
+	}
+}
+
+//This function lets VM join the group
+func (self *Daemon) JoinGroup () (reqArr []string, err error) {
+	buf := make([]byte, 1024)
+	conn, err := net.Dial("udp", self.Introducer + ":3456")
+	if err != nil {
+		fmt.Println(err)
+                return
+        }
+	msg := "JOIN " + self.Vm_id
+	join_buffer := []byte(msg)
+        _, err = conn.Write(join_buffer)
+        if err != nil {
+        	fmt.Println(err)
+		return
+        }
+	reqLen, err := conn.Read(buf)
+	if err != nil {
+		fmt.Fprintln(err)
+		return
+	}	
+	conn.Close()
+	reqArr = strings.Split(string(buf[:reqLen]), " ")
+	self.IsActive = true
+	return reqArr, err
+}
+
