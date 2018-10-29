@@ -660,7 +660,10 @@ func (self *Daemon) CleanOutSdfs() {
 		files,_ := ioutil.ReadDir("sdfs")
 	        for _, file := range files {
 			fullPath := "sdfs/" + file.Name()
-			os.Remove(fullPath)
+			err := os.Remove(fullPath)
+			if err != nil {
+				fmt.Println(err)
+			}
 		}
 	}
 }

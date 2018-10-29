@@ -33,6 +33,7 @@ func main() {
                 			return
         			}
 				d.ResponseLIST(buf)
+				d.CleanOutSdfs()
 				go d.PingToMembers()
         			go d.TimeOutCheck()
         			go d.DaemonListenUDP()
