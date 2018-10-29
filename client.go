@@ -8,14 +8,14 @@ import (
 	"strings"
 )
 
+//TCP: 5678, UDP:3456
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("Please type in master id!")
 		return
 	}
-	port := "3456"
 	master_id := os.Args[1]
-	d, err := daemon.NewDaemon(port, master_id)
+	d, err := daemon.NewDaemon(master_id)
   	if err != nil {
     		return
   	}
@@ -35,20 +35,23 @@ func main() {
 				d.ResponseLIST(buf)
 				go d.PingToMembers()
         			go d.TimeOutCheck()
-        			go d.DaemonListen()
+        			go d.DaemonListenUDP()
+				go d.DaemonListenTCP()
 
-			} else if strings.Contains(cmd, "put") {
-				go SendPutRequest(cmd)
+			} else if strings.Contains(cmd, "LIST") {
+                                d.PrintMembershipList()
+                        } else if strings.Contains(cmd, "put") {
+				d.SendPutRequest(cmd)
 			} else if strings.Contains(cmd, "get") {
-				go SendGetRequest(cmd)
+				d.SendGetRequest(cmd)
 			} else if strings.Contains(cmd, "delete") {
-				go SendDeleteRequest(cmd)
+				d.SendDeleteRequest(cmd)
 			} else if strings.Contains(cmd, "ls") {
-				go SendLsRequest(cmd)
+				d.SendLsRequest(cmd)
 			} else if strings.Contains(cmd, "store") {
-				go StoreRequest()
+				d.StoreRequest()
 			} else if strings.Contains(cmd, "get-versions") {
-				go SendGetVersionRequest(cmd)
+				d.SendGetVersionRequest(cmd)
 			} else {
 				fmt.Println("Input does not match any commads!")	
 			}

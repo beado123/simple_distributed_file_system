@@ -23,8 +23,10 @@ type Node struct {
 type Daemon struct {
 	VmId string
 	VmIpAddress string
-	Ln *Listener
+	Ln net.Listener
+	PortTCP string
 	Ser *net.UDPConn
+	PortUDP string
 	MembershipList map[string]*Node
 	IsActive bool
 	Master string
@@ -54,10 +56,11 @@ func NewDaemon(id string) (d *Daemon, err error) {
 		VmId: vm_id,
 		VmIpAddress: ip_address,
 		Ln: l,
+		PortTCP: "5678",
 		Ser: ser,
+		PortUDP: "3456",
 		MembershipList: make(map[string]*Node),
 		IsActive: true,
-		//MW: mw,
 		Master: master,
 		MyMutex: mutex,
 	}
@@ -81,6 +84,18 @@ func getIPAddrAndLogfile() string{
 	return ip
 }
 
+func fillString(retunString string, toLength int) string {
+	for {
+		lengtString := len(retunString)
+		if lengtString < toLength {
+			retunString = retunString + ":"
+			continue
+		}
+		break
+	}
+	return retunString
+}
+
 func (self *Daemon) DaemonListenTCP() {
 	if self.IsActive == false {
 		return
@@ -93,7 +108,7 @@ func (self *Daemon) DaemonListenTCP() {
 			fmt.Println(err)
 			return
 		}
-		go ParseRequest(conn)
+		go self.ParseRequest(conn)
 	}
 }
 
@@ -145,7 +160,7 @@ func (self *Daemon) ReceivePutRequest(conn net.Conn) {
 
 func (self *Daemon) SendPutRequest(cmd string) {
 	//connect to master
-	conn, err := net.Dial("tcp", self.Master + ":" + self.PortNum)
+	conn, err := net.Dial("tcp", self.Master + ":" + self.PortTCP)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -161,7 +176,7 @@ func (self *Daemon) SendPutRequest(cmd string) {
                 fmt.Println(err)
                 return
         }
-	num, _ := string(buf[:reqLen])
+	num := string(buf[:reqLen])
 	reqLen, err = conn.Read(buf)
         if err != nil {
                 fmt.Println(err)
@@ -172,7 +187,7 @@ func (self *Daemon) SendPutRequest(cmd string) {
 
 	//connect to each replica host
 	var wg sync.WaitGroup
-	var count := 0
+	var count int = 0
 	wg.Add(len(reqArr))
 	for _, id := range reqArr {
 		go func(id string, cmd string, num string) {
@@ -192,7 +207,7 @@ func (self *Daemon) SendPutRequest(cmd string) {
 			}
 
 			name := "fa18-cs425-g69-" + id + ".cs.illinois.edu"
-			conn, err := net.Dial("tcp", name + ":" + self.PortNum)
+			conn, err := net.Dial("tcp", name + ":" + self.PortTCP)
 			if err != nil {
                 		fmt.Println(err)
 				wg.Done()
@@ -297,7 +312,7 @@ func (self *Daemon) ReceiveGetRequestAndSendFile(conn net.Conn) {
 
 func (self *Daemon) SendGetRequest(cmd string) {
 	//connect to master
-        conn, err := net.Dial("tcp", self.Master + ":" + self.PortNum)
+        conn, err := net.Dial("tcp", self.Master + ":" + self.PortTCP)
         if err != nil {
                 fmt.Println(err)
                 return
@@ -318,28 +333,25 @@ func (self *Daemon) SendGetRequest(cmd string) {
 
 	//connect to each replica host
 	var wg sync.WaitGroup
-      	var latestVersion := 0
-	var vmId := 0
+      	var latestVersion int = 0
+	var vmId int = 0
         wg.Add(len(reqArr))
         for _, id := range reqArr {
                 go func(id string, cmd string) {
-			localFileName, sdfsFileName := ParseGetRequest(cmd)
-			fileName := num + "_" + sdfsFileName
-                        localFullPath := "local/" + localFileName
-                        sdfsFullPath := "sdfs/" + fileName
+			_, sdfsFileName := ParseGetRequest(cmd)
 			if id == self.VmId {
 				version := GetFileLatestVersion(sdfsFileName)
 				currVersion, _ := strconv.Atoi(version)
 				if currVersion > latestVersion {
                                 	latestVersion = currVersion
-                                	vmId = id
+                                	vmId, _ = strconv.Atoi(id)
 	                        }
 				wg.Done()
 				return
 			}
 
 			name := "fa18-cs425-g69-" + id + ".cs.illinois.edu"
-                        conn, err := net.Dial("tcp", name + ":" + self.PortNum)
+                        conn, err := net.Dial("tcp", name + ":" + self.PortTCP)
                         if err != nil {
                                 fmt.Println(err)
                                 wg.Done()
@@ -348,14 +360,14 @@ func (self *Daemon) SendGetRequest(cmd string) {
                         defer conn.Close()			
                         request := "get_id"
 			conn.Write([]byte(request))
-                        conn.Write([]byte(fileName))
+                        conn.Write([]byte(sdfsFileName))
 
 			bufferFileVersion := make([]byte, 64)	
 			reqLen, _ := conn.Read(bufferFileVersion)
-			currVersion := strconv.Atoi(string(bufferFileVersion[:reqLen]))
+			currVersion, _ := strconv.Atoi(string(bufferFileVersion[:reqLen]))
 			if currVersion > latestVersion {
 				latestVersion = currVersion
-				vmId = id
+				vmId, _ = strconv.Atoi(id)
 			}
 			wg.Done()
 		}(id, cmd)
@@ -363,16 +375,15 @@ func (self *Daemon) SendGetRequest(cmd string) {
         wg.Wait()	
 	
 	localFileName, sdfsFileName := ParseGetRequest(cmd)
-	fileName := num + "_" + sdfsFileName
         localFullPath := "local/" + localFileName
-        sdfsFullPath := "sdfs/" + fileName
+        sdfsFullPath := "sdfs/" + sdfsFileName
 	//connect the latest replica
-	if self.VmId == vmId {
+	if self.VmId == strconv.Itoa(vmId) {
                	FileCopy(sdfsFullPath, localFullPath)
 		return 
 	}
-	name := "fa18-cs425-g69-" + vmId + ".cs.illinois.edu"
-        conn, err := net.Dial("tcp", name + ":" + self.PortNum)
+	name := "fa18-cs425-g69-" + strconv.Itoa(vmId) + ".cs.illinois.edu"
+        conn, err = net.Dial("tcp", name + ":" + self.PortTCP)
         if err != nil {
         	fmt.Println(err)
         	return
@@ -380,9 +391,9 @@ func (self *Daemon) SendGetRequest(cmd string) {
         defer conn.Close()	
 	request := "get_file"
 	conn.Write([]byte(request))
-	conn.Write([]byte(fileName))
+	conn.Write([]byte(sdfsFileName))
 	bufferFileSize := make([]byte, 10)
-        reqLen, _ := conn.Read(bufferFileSize)
+        reqLen, _ = conn.Read(bufferFileSize)
         fileSize, _ := strconv.ParseInt(string(bufferFileSize[:reqLen]), 10, 64)
 	
 	//create new file
@@ -409,18 +420,14 @@ func (self *Daemon) ReceiveDeleteRequest(conn net.Conn) {
 	bufferFileName := make([]byte, 64)
 	reqLen, _ := conn.Read(bufferFileName)
 	fileName := string(bufferFileName[:reqLen])
-	err := DeleteSdfsfile(fileName)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}	
+	DeleteSdfsfile(fileName)
 	response := "deleteACK"
 	conn.Write([]byte(response))
 }
 
 func (self *Daemon) SendDeleteRequest(cmd string) {
 	//connect to master
-        conn, err := net.Dial("tcp", self.Master + ":" + self.PortNum)
+        conn, err := net.Dial("tcp", self.Master + ":" + self.PortTCP)
         if err != nil {
                 fmt.Println(err)
                 return
@@ -440,22 +447,20 @@ func (self *Daemon) SendDeleteRequest(cmd string) {
         conn.Close()
 
 	var wg sync.WaitGroup
-	var count := 0
+	var count int = 0
         wg.Add(len(reqArr))
         for _, id := range reqArr {
                 go func(id string, cmd string) {
 			sdfsFileName := ParseDeleteRequest(cmd)
 			if id == self.VmId {
-				err := DeleteSdfsfile(sdfsFileName)
-				if err == nil {
-					count += 1
-				}
+				DeleteSdfsfile(sdfsFileName)
+				count += 1
 				wg.Done()
 				return
 			}
 
 			name := "fa18-cs425-g69-" + id + ".cs.illinois.edu"
-                        conn, err := net.Dial("tcp", name + ":" + self.PortNum)
+                        conn, err := net.Dial("tcp", name + ":" + self.PortTCP)
                         if err != nil {
                                 fmt.Println(err)
                                 wg.Done()
@@ -494,7 +499,7 @@ func (self *Daemon) SendDeleteRequest(cmd string) {
 
 func (self *Daemon) SendLsRequest(cmd string) {
 	//connect to master
-        conn, err := net.Dial("tcp", self.Master + ":" + self.PortNum)
+        conn, err := net.Dial("tcp", self.Master + ":" + self.PortTCP)
         if err != nil {
                 fmt.Println(err)
                 return
@@ -524,13 +529,13 @@ func (self *Daemon) StoreRequest() {
         	fmt.Println(err)
 		return
     	}
-	m = make(map[string]int)
+	m := make(map[string]int)
     	for _, f := range files {
 		reqArr := strings.Split(f.Name(), "_")
 		if _, ok := m[reqArr[1]]; ok {
 			
 		} else {
-			m[reqArr[1]] := 0
+			m[reqArr[1]] = 0
 			fmt.Println(reqArr[1])
 		}
     	}
@@ -538,7 +543,7 @@ func (self *Daemon) StoreRequest() {
 
 func (self *Daemon) SendGetVersionRequest(cmd string) {
 	//connect to master
-        /*conn, err := net.Dial("tcp", self.Master + ":" + self.PortNum)
+        /*conn, err := net.Dial("tcp", self.Master + ":" + self.PortTCP)
         if err != nil {
                 fmt.Println(err)
                 return
@@ -595,29 +600,29 @@ func FileCopy(source string, destination string) error{
 
 func ParsePutRequest(cmd string) (localFileName string, sdfsFileName string) {
 	reqArr := strings.Split(cmd, " ")
-        localFileName := reqArr[1]
-        sdfsFileName := reqArr[2]
+        localFileName = reqArr[1]
+        sdfsFileName = reqArr[2]
 	return 
 }
 
 func ParseGetRequest(cmd string) (localFileName string, sdfsFileName string) {
         reqArr := strings.Split(cmd, " ")
-        localFileName := reqArr[2]
-        sdfsFileName := reqArr[1]
+        localFileName = reqArr[2]
+        sdfsFileName = reqArr[1]
         return
 }
 
 func ParseDeleteRequest(cmd string) (sdfsFileName string) {
 	reqArr := strings.Split(cmd, " ")
-	sdfsFileName := reqArr[1]
+	sdfsFileName = reqArr[1]
 	return
 }
 
 func ParseGetVersionRequest(cmd string) (localFileName string, sdfsFileName string, num string) {
         reqArr := strings.Split(cmd, " ")
-        localFileName := reqArr[3]
-        sdfsFileName := reqArr[1]
-	num := reqArr[2]
+        localFileName = reqArr[3]
+        sdfsFileName = reqArr[1]
+	num = reqArr[2]
         return
 }
 
@@ -628,25 +633,24 @@ func GetFileLatestVersion(fileName string) string{
 		if strings.HasSuffix(file.Name(), fileName) == true {
 			num, _ := strconv.Atoi(strings.Split(file.Name(), "_")[0])
 			if num > version {
-                                version := num
+                                version = num
                         }
 		}
 	}
 	return strconv.Itoa(version)
 }
 
-func DeleteSdfsfile(fileName string) error{
+func DeleteSdfsfile(fileName string) {
 	files,_ := ioutil.ReadDir("sdfs")
         for _, file := range files {
                 if strings.HasSuffix(file.Name(), fileName) == true {
 			fullPath := "sdfs/" + file.Name()
 			err := os.Remove(fullPath)
 			if err != nil {
-				return err
+				fmt.Println(err)
 			}
 		}
 	}
-	return err
 }
 
 func (self *Daemon) CleanOutSdfs() {
@@ -678,18 +682,12 @@ func (self *Daemon) DaemonListenUDP() {
 			go self.ResponsePING(client_addr, reqArr)			
 		} else if reqArr[0] == "LIST" {
 			go self.ResponseLIST(reqArr)
-		
+		}	
 	}
 }
 
 //This function sends ACK back to pinger
 func (self *Daemon) ResponsePING(addr *net.UDPAddr, reqArr []string) {
-	if _, ok := self.PingerList[reqArr[1]]; ok {
-		self.PingerList[reqArr[1]].State = 1
-        	self.PingerList[reqArr[1]].T = time.Now()
-        } else {
-		self.AddNewPinger(reqArr[1])
-	}
 	_, err := self.Ser.WriteToUDP([]byte("ACK"), addr)
 	if err != nil { 
 		fmt.Println(err)
@@ -748,7 +746,7 @@ func (self *Daemon) ResponseLIST(reqArr []string) {
 
 //This function tells introducer failure machine
 func (self *Daemon) SendDOWN(id string) {
-	conn, err := net.Dial("udp", self.Introducer + ":3456")
+	conn, err := net.Dial("udp", self.Master + ":" + self.PortUDP)
         if err != nil {
                 fmt.Println(err)
                 return
@@ -776,13 +774,13 @@ func (self *Daemon) PingToMembers() {
 				continue;
 			}
 			self.MyMutex.Unlock()
-			member_address := "fa18-cs425-g69-" + curr_node.Id + ".cs.illinois.edu:3456"
+			member_address := "fa18-cs425-g69-" + curr_node.Id + ".cs.illinois.edu:" + self.PortUDP
 			conn, err := net.Dial("udp", member_address)
 			if err != nil {
                         	fmt.Println(err)
                         	continue
                         }
-			msg := "PING " + self.Vm_id
+			msg := "PING " + self.VmId
 			buf := []byte(msg)
 			_, err = conn.Write(buf)
 			if err != nil {
@@ -836,12 +834,12 @@ func (self *Daemon) TimeOutCheck() {
 //This function lets VM join the group
 func (self *Daemon) JoinGroup () (reqArr []string, err error) {
 	buf := make([]byte, 1024)
-	conn, err := net.Dial("udp", self.Introducer + ":3456")
+	conn, err := net.Dial("udp", self.Master + ":" + self.PortUDP)
 	if err != nil {
 		fmt.Println(err)
                 return
         }
-	msg := "JOIN " + self.Vm_id
+	msg := "JOIN " + self.VmId
 	join_buffer := []byte(msg)
         _, err = conn.Write(join_buffer)
         if err != nil {
@@ -850,7 +848,7 @@ func (self *Daemon) JoinGroup () (reqArr []string, err error) {
         }
 	reqLen, err := conn.Read(buf)
 	if err != nil {
-		fmt.Fprintln(err)
+		fmt.Println(err)
 		return
 	}	
 	conn.Close()
