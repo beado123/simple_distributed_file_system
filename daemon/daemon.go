@@ -860,3 +860,8 @@ func (self *Daemon) JoinGroup () (reqArr []string, err error) {
 	return reqArr, err
 }
 
+//This function print vm id
+func (self *Daemon) PrintId() {
+	fmt.Println(self.VmId)
+}
+

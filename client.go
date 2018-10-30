@@ -41,7 +41,9 @@ func main() {
 
 			} else if strings.Contains(cmd, "LIST") {
                                 d.PrintMembershipList()
-                        } else if strings.Contains(cmd, "put") {
+                        } else if strings.Contains(cmd, "SELF") {
+				d.PrintId()
+			} else if strings.Contains(cmd, "put") {
 				d.SendPutRequest(cmd)
 			} else if strings.Contains(cmd, "get") {
 				d.SendGetRequest(cmd)
