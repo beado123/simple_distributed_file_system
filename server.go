@@ -51,14 +51,14 @@ func getIPAddr() string{
 	if strings.HasSuffix(ip, "\n") {
 		ip = ip[:(len(ip) - 1)]
 	}
-	fmt.Fprintln(logWriter, "ip address of current VM:", ip)
+	fmt.Println("ip address of current VM:", ip)
 	return ip
 }
 
 //This is a helper function that prints the error
 func checkErr(err error) {
 	if err != nil {
-		fmt.Fprintln(logWriter, "Error: ", err)
+		fmt.Println("Error: ", err)
 	}
 }
 
@@ -376,6 +376,7 @@ func parseRequest(conn net.Conn) {
 	out := ""
 	if cmd == "put" {
 		fileName := reqArr[2]
+		fmt.Println(m[fileName])
 		_, ok := m[fileName]
 		if ok {
 			vms := m[fileName]
@@ -395,6 +396,7 @@ func parseRequest(conn net.Conn) {
 				out += vms[i] + " "
 			}	
 			out = out[:(len(out)-1)]
+			fmt.Println("out",out)
 		}
 	} 
 	
@@ -405,7 +407,7 @@ func parseRequest(conn net.Conn) {
 }
 func startMaster() {
 
-	//pointer = 8
+	pointer = -1
 	vm = []string{"1","2","3","4","5","6","7","8","9"}
 	m = make(map[string][4]string)
 	version = make(map[string]int)
@@ -414,10 +416,10 @@ func startMaster() {
 	//fmt.Println(m["name"])
 
 	//get ip address from servers list	
-	//ip := getIPAddr()
-	ip := "127.0.0.1"
+	ip := getIPAddr()
+	//ip := "127.0.0.1"
 	//listen for incoming connections
-	l, err := net.Listen("tcp", ip + ":3000")
+	l, err := net.Listen("tcp", ip + ":5678")
 	printErr(err, "listening")
 	
 	//close the listener when app closes
