@@ -389,16 +389,13 @@ func parseRequest(conn net.Conn) {
 		} else {
 			//upload new file
 			version[fileName] = 1
-			out += "1"
-			conn.Write([]byte(out))
-			out = ""
+			out += "1\n"
 			vms := getStorePosition()
 			m[fileName] = vms		
 			for i:=0; i<len(vms); i++ {
 				out += vms[i] + " "
 			}	
 			out = out[:(len(out)-1)]
-			fmt.Println("out",out)
 		}
 	} else if cmd == "get" {
 		fileName := reqArr[2]
@@ -426,7 +423,8 @@ func parseRequest(conn net.Conn) {
 			fmt.Println("File", fileName, "does not Exist!")
 		}	
 	}
-	
+
+	fmt.Println("out",out)
 	//send response
 	conn.Write([]byte(out))
 	//close connection
