@@ -678,20 +678,6 @@ func ParseGetVersionRequest(cmd string) (localFileName string, sdfsFileName stri
         return
 }
 
-func GetFileLatestVersion(fileName string) string{
-	version := 0
-	files,_ := ioutil.ReadDir("sdfs")
-	for _, file := range files {
-		if strings.HasSuffix(file.Name(), fileName) == true {
-			num, _ := strconv.Atoi(strings.Split(file.Name(), "_")[0])
-			if num > version {
-                                version = num
-                        }
-		}
-	}
-	return strconv.Itoa(version)
-}
-
 func DeleteSdfsfile(fileName string) {
 	files,_ := ioutil.ReadDir("sdfs")
         for _, file := range files {
