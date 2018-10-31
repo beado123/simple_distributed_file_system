@@ -113,7 +113,7 @@ func (self *Daemon) DaemonListenTCP() {
 }
 
 func (self *Daemon) ParseRequest(conn net.Conn) {
-	bufferRequest := make([]byte, 64)
+	bufferRequest := make([]byte, 8)
 	conn.Read(bufferRequest)
 	request := string(bufferRequest)
 	if request == "put_file" {
@@ -130,10 +130,10 @@ func (self *Daemon) ReceivePutRequest(conn net.Conn) {
 	//read file size and file name first
 	bufferFileName := make([]byte, 64)
 	bufferFileSize := make([]byte, 10)
-	l1, _ := conn.Read(bufferFileSize)
-	fileSize, _ := strconv.ParseInt(string(bufferFileSize[:l1]), 10, 64)
-	l2, _ := conn.Read(bufferFileName)
-	fileName := string(bufferFileName[:l2])
+	conn.Read(bufferFileSize)
+	fileSize, _ := strconv.ParseInt(strings.Trim(string(bufferFileSize), ":"), 10, 64)
+	conn.Read(bufferFileName)
+	fileName := strings.Trim(string(bufferFileName), ":")
 	fullPath := "sdfs/" + fileName
 	
 	//create new file
@@ -229,6 +229,7 @@ func (self *Daemon) SendPutRequest(cmd string) {
 				return
 			}
 			fileSize := fillString(strconv.FormatInt(fileInfo.Size(), 10), 10)
+			fileName = fillString(fileName, 64)
 			conn.Write([]byte(request))
 			conn.Write([]byte(fileSize))
 			conn.Write([]byte(fileName))
