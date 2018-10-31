@@ -355,6 +355,7 @@ func (self *Daemon) SendGetRequest(cmd string) {
 	bufferFileSize := make([]byte, 10)
         conn.Read(bufferFileSize)
         fileSize, _ := strconv.ParseInt(string(bufferFileSize), 10, 64)
+	fmt.Println(fileSize)
 	newFile, err := os.Create(localFullPath)
         if err != nil {
         	fmt.Println(err)
