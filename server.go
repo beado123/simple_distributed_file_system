@@ -10,7 +10,7 @@ import (
 	"io/ioutil"
 	"strconv"
 )
-var m map[string][4]string
+var m map[string][]string
 var version map[string]int
 var vm []string
 var pointer int
@@ -376,6 +376,8 @@ func parseRequest(conn net.Conn) {
 	out := ""
 	if cmd == "put" {
 		fileName := reqArr[2]
+		fileName = fileName[:len(fileName)-1]
+		fmt.Println("put size of file name", len(fileName))
 		fmt.Println(m[fileName])
 		_, ok := m[fileName]
 		if ok {
@@ -391,7 +393,12 @@ func parseRequest(conn net.Conn) {
 			version[fileName] = 1
 			out += "1\n"
 			vms := getStorePosition()
-			m[fileName] = vms		
+			
+			for i:=0; i<len(vms); i++ {
+				m[fileName] = append(m[fileName], vms[i])
+			}	
+			fmt.Println("assign vm after", m[fileName])
+			fmt.Println(m[fileName][0])	
 			for i:=0; i<len(vms); i++ {
 				out += vms[i] + " "
 			}	
@@ -399,7 +406,9 @@ func parseRequest(conn net.Conn) {
 		}
 	} else if cmd == "get" {
 		fileName := reqArr[1]
-		fmt.Println(m[fileName])
+		fmt.Println("fileName", fileName)
+		fmt.Println("m[",fileName, "]:",  m[fileName])
+		fmt.Println("m[fileName][0]", m[fileName][0])
 		_, ok := m[fileName]
 		if ok {
 			vms := m[fileName]
@@ -410,6 +419,7 @@ func parseRequest(conn net.Conn) {
 		}	
 	} else if cmd == "delete" || cmd == "ls" {
 		fileName := reqArr[1]
+		fileName = fileName[:(len(fileName)-1)]
 		fmt.Println(m[fileName])
 		_, ok := m[fileName]
 		if ok {
@@ -434,7 +444,7 @@ func startMaster() {
 
 	pointer = -1
 	vm = []string{"01","02","03","04","05","06","07","08","09"}
-	m = make(map[string][4]string)
+	m = make(map[string][]string)
 	version = make(map[string]int)
 
 	//get ip address from servers list	
