@@ -113,33 +113,33 @@ func (self *Daemon) DaemonListenTCP() {
 }
 
 func (self *Daemon) ParseRequest(conn net.Conn) {
-	bufferRequest := make([]byte, 64)
+	bufferRequest := make([]byte, 8)
 	conn.Read(bufferRequest)
 	request := string(bufferRequest)
 	if request == "put_file" {
 		self.ReceivePutRequest(conn)
 	} else if request == "get_file" {
 		self.ReceiveGetRequest(conn)
-	} else if request == "delete_file" {
+	} else if request == "del_file" {
 		self.ReceiveDeleteRequest(conn)
 	}
 }
 
 func (self *Daemon) ReceivePutRequest(conn net.Conn) {
-	fmt.Println("should put file")
+	defer conn.Close()
 	//read file size and file name first
 	bufferFileName := make([]byte, 64)
 	bufferFileSize := make([]byte, 10)
-	l1, _ := conn.Read(bufferFileSize)
-	fileSize, _ := strconv.ParseInt(string(bufferFileSize[:l1]), 10, 64)
-	l2, _ := conn.Read(bufferFileName)
-	fileName := string(bufferFileName[:l2])
+	conn.Read(bufferFileSize)
+	fileSize, _ := strconv.ParseInt(strings.Trim(string(bufferFileSize), ":"), 10, 64)
+	conn.Read(bufferFileName)
+	fileName := strings.Trim(string(bufferFileName), ":")
 	fullPath := "sdfs/" + fileName
 	
 	//create new file
 	newFile, err := os.Create(fullPath)
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
 	}
 	defer newFile.Close()
 	var receivedBytes int64
@@ -157,38 +157,33 @@ func (self *Daemon) ReceivePutRequest(conn net.Conn) {
 	conn.Write([]byte(response))
 }
 
-func (self *Daemon) PutHelper(cmd string) (num string, reqArr []string) {
+func (self *Daemon) PutHelper(cmd string) (num string, ids []string) {
 	//connect to master
         conn, err := net.Dial("tcp", self.Master + ":" + self.PortTCP)
         if err != nil {
                 fmt.Println(err)
                 return
         }
-	conn.Close()
+	defer conn.Close()
 
         //send to socket
         fmt.Fprintf(conn, cmd)
 
         //read message from socket
-        buf := make([]byte, 64)
+        buf := make([]byte, BUFFERSIZE)
         reqLen, err := conn.Read(buf)
         if err != nil {
                 fmt.Println(err)
                 return
         }
-        num = string(buf[:reqLen])
-        reqLen, err = conn.Read(buf)
-        if err != nil {
-                fmt.Println(err)
-                return
-        }
-	reqArr = strings.Split(string(buf[:reqLen]), " ")
+        reqArr := strings.Split(string(buf[:reqLen]), "\n")
+	num = reqArr[0]
+	ids = strings.Split(reqArr[1], " ")
 	return
 } 
 
 func (self *Daemon) SendPutRequest(cmd string) {
 	num, reqArr := self.PutHelper(cmd)
-
 	//connect to each replica host
 	var wg sync.WaitGroup
 	var count int = 0
@@ -199,7 +194,6 @@ func (self *Daemon) SendPutRequest(cmd string) {
                         fileName := num + "_" + sdfsFileName
 			localFullPath := "local/" + localFileName
 			sdfsFullPath := "sdfs/" + fileName
-			fmt.Println(sdfsFullPath)
 
 			if id == self.VmId {
 				//move local file to sdfs
@@ -235,6 +229,7 @@ func (self *Daemon) SendPutRequest(cmd string) {
 				return
 			}
 			fileSize := fillString(strconv.FormatInt(fileInfo.Size(), 10), 10)
+			fileName = fillString(fileName, 64)
 			conn.Write([]byte(request))
 			conn.Write([]byte(fileSize))
 			conn.Write([]byte(fileName))
@@ -277,8 +272,8 @@ func (self *Daemon) ReceiveGetRequest(conn net.Conn) {
 	defer conn.Close()
 	//find file name
 	bufferFileName := make([]byte, 64)
-        reqLen, _ := conn.Read(bufferFileName)
-        fileName := string(bufferFileName[:reqLen])
+        conn.Read(bufferFileName)
+        fileName := strings.Trim(string(bufferFileName), ":")
 	fullPath := "sdfs/" + fileName
 
 	//read file
@@ -304,7 +299,7 @@ func (self *Daemon) ReceiveGetRequest(conn net.Conn) {
         }
 }
 
-func (self *Daemon) SendGetRequest(cmd string) {
+func (self *Daemon) GetHelper(cmd string) (version string, id string){
 	//connect to master
         conn, err := net.Dial("tcp", self.Master + ":" + self.PortTCP)
         if err != nil {
@@ -316,32 +311,31 @@ func (self *Daemon) SendGetRequest(cmd string) {
         fmt.Fprintf(conn, cmd)
 
         //read message from socket
-        buf := make([]byte, 64)
+        buf := make([]byte, BUFFERSIZE)
         reqLen, err := conn.Read(buf)
         if err != nil {
                 fmt.Println(err)
                 return
         }
-	version := string(buf[:reqLen])
-	reqLen, err = conn.Read(buf)
-        if err != nil {
-                fmt.Println(err)
-                return
-        }
-	id := string(buf[:reqLen])
-        conn.Close()
-	
+	reqArr := strings.Split(string(buf[:reqLen]), "\n")
+	version = reqArr[0]
+	id = reqArr[1]
+	return
+}
+
+func (self *Daemon) SendGetRequest(cmd string) {
+	version, id := self.GetHelper(cmd)
+	//send put request
 	localFileName, sdfsFileName := ParseGetRequest(cmd)
         localFullPath := "local/" + localFileName
 	fileName := version + "_" + sdfsFileName
         sdfsFullPath := "sdfs/" + fileName
-	
 	if self.VmId == id {
                	FileCopy(sdfsFullPath, localFullPath)
 		return 
 	}
 	name := "fa18-cs425-g69-" + id + ".cs.illinois.edu"
-        conn, err = net.Dial("tcp", name + ":" + self.PortTCP)
+        conn, err := net.Dial("tcp", name + ":" + self.PortTCP)
         if err != nil {
         	fmt.Println(err)
         	return
@@ -349,16 +343,16 @@ func (self *Daemon) SendGetRequest(cmd string) {
         defer conn.Close()	
 	request := "get_file"
 	conn.Write([]byte(request))
+	fileName = fillString(fileName, 64)
 	conn.Write([]byte(fileName))
 
+	//receive new file
 	bufferFileSize := make([]byte, 10)
-        reqLen, _ = conn.Read(bufferFileSize)
-        fileSize, _ := strconv.ParseInt(string(bufferFileSize[:reqLen]), 10, 64)
-	
-	//create new file
+        conn.Read(bufferFileSize)
+        fileSize, _ := strconv.ParseInt(string(bufferFileSize), 10, 64)
 	newFile, err := os.Create(localFullPath)
         if err != nil {
-                panic(err)
+        	fmt.Println(err)
         }
         defer newFile.Close()
         var receivedBytes int64
@@ -500,6 +494,38 @@ func (self *Daemon) StoreRequest() {
     	}
 }
 
+func (self *Daemon) ReceiveGetVersionRequest(conn net.Conn) {
+	defer conn.Close()
+	bufferFileName := make([]byte, BUFFERSIZE)
+        reqLen, _ := conn.Read(bufferFileName)
+        fileNames := strings.Split(string(bufferFileName[:reqLen]), " ")
+	
+	//read file
+	for _, fileName := range fileNames {
+		fullPath := "sdfs/" + fileName
+		file, err := os.Open(fullPath)
+	        if err != nil {
+        		fmt.Println(err)
+               		return
+        	}
+        	fileInfo, err := file.Stat()
+        	if err != nil {
+        		fmt.Println(err)
+                	return
+       		}
+        	fileSize := fillString(strconv.FormatInt(fileInfo.Size(), 10), 10)
+		conn.Write([]byte(fileSize))
+		sendBuffer := make([]byte, BUFFERSIZE)
+        	for true{
+        		_, err = file.Read(sendBuffer)
+                	if err == io.EOF {
+                		break
+                	}
+                	conn.Write(sendBuffer)
+        	}
+	}
+}
+
 func (self *Daemon) SendGetVersionRequest(cmd string) {
 	//connect to master
         /*conn, err := net.Dial("tcp", self.Master + ":" + self.PortTCP)
@@ -528,6 +554,7 @@ func (self *Daemon) SendGetVersionRequest(cmd string) {
         conn.Close()
 		
 	localFileName, sdfsFileName, _ := ParseGetVersionRequest(cmd)
+	localFullPath := "local/" + localFileName
 	fileName := ""
 	for i, version := range versions {
 		if i == len(versions) - 1 {
@@ -549,11 +576,23 @@ func (self *Daemon) SendGetVersionRequest(cmd string) {
         defer conn.Close()
         request := "get_version"
         conn.Write([]byte(request))
-        conn.Write([]byte(fileName))*/
-	
+        conn.Write([]byte(fileName))
+
+	//create new file
+	newFile, err := os.Create(localFullPath)
+        if err != nil {
+                panic(err)
+        }
+        defer newFile.Close()
+	fileNames := strings.Split(fileName, " ")
+	for _, name := range fileNames {
+		
+	}*/
 }
 ////////////////////helper function////////////////////////////////////////////////
 func FileCopy(source string, destination string) error{
+	fmt.Println(source)
+	fmt.Println(destination)
 	from, err := os.Open(source)
   	if err != nil {
     		fmt.Println(err)
@@ -577,6 +616,9 @@ func FileCopy(source string, destination string) error{
 }
 
 func ParsePutRequest(cmd string) (localFileName string, sdfsFileName string) {
+	if strings.HasSuffix(cmd, "\n") {
+		cmd = cmd[:(len(cmd) - 1)]
+	}
 	reqArr := strings.Split(cmd, " ")
         localFileName = reqArr[1]
         sdfsFileName = reqArr[2]
@@ -584,6 +626,9 @@ func ParsePutRequest(cmd string) (localFileName string, sdfsFileName string) {
 }
 
 func ParseGetRequest(cmd string) (localFileName string, sdfsFileName string) {
+	if strings.HasSuffix(cmd, "\n") {
+                cmd = cmd[:(len(cmd) - 1)]
+        }
         reqArr := strings.Split(cmd, " ")
         localFileName = reqArr[2]
         sdfsFileName = reqArr[1]
@@ -591,12 +636,18 @@ func ParseGetRequest(cmd string) (localFileName string, sdfsFileName string) {
 }
 
 func ParseDeleteRequest(cmd string) (sdfsFileName string) {
+	if strings.HasSuffix(cmd, "\n") {
+                cmd = cmd[:(len(cmd) - 1)]
+        }
 	reqArr := strings.Split(cmd, " ")
 	sdfsFileName = reqArr[1]
 	return
 }
 
 func ParseGetVersionRequest(cmd string) (localFileName string, sdfsFileName string, num string) {
+	if strings.HasSuffix(cmd, "\n") {
+                cmd = cmd[:(len(cmd) - 1)]
+        }
         reqArr := strings.Split(cmd, " ")
         localFileName = reqArr[3]
         sdfsFileName = reqArr[1]
