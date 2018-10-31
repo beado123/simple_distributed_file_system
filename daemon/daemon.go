@@ -126,6 +126,7 @@ func (self *Daemon) ParseRequest(conn net.Conn) {
 }
 
 func (self *Daemon) ReceivePutRequest(conn net.Conn) {
+	fmt.Println("should put file")
 	//read file size and file name first
 	bufferFileName := make([]byte, 64)
 	bufferFileSize := make([]byte, 10)
@@ -134,7 +135,7 @@ func (self *Daemon) ReceivePutRequest(conn net.Conn) {
 	l2, _ := conn.Read(bufferFileName)
 	fileName := string(bufferFileName[:l2])
 	fullPath := "sdfs/" + fileName
-
+	
 	//create new file
 	newFile, err := os.Create(fullPath)
 	if err != nil {
@@ -195,6 +196,7 @@ func (self *Daemon) SendPutRequest(cmd string) {
                         fileName := num + "_" + sdfsFileName
 			localFullPath := "local/" + localFileName
 			sdfsFullPath := "sdfs/" + fileName
+			fmt.Println(sdfsFullPath)
 
 			if id == self.VmId {
 				//move local file to sdfs
