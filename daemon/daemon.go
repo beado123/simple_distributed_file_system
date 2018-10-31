@@ -122,6 +122,8 @@ func (self *Daemon) ParseRequest(conn net.Conn) {
 		self.ReceiveGetRequest(conn)
 	} else if request == "del_file" {
 		self.ReceiveDeleteRequest(conn)
+	} else if request == "get_vers" {
+		self.ReceiveGetVersionRequest(conn)
 	}
 }
 
@@ -530,33 +532,33 @@ func (self *Daemon) ReceiveGetVersionRequest(conn net.Conn) {
 	}
 }
 
-func (self *Daemon) SendGetVersionRequest(cmd string) {
+func (self *Daemon) GetVersionHelper(cmd string) (versions []string, id string) {
 	//connect to master
-        /*conn, err := net.Dial("tcp", self.Master + ":" + self.PortTCP)
+        conn, err := net.Dial("tcp", self.Master + ":" + self.PortTCP)
         if err != nil {
                 fmt.Println(err)
                 return
         }
+	defer conn.Close()
 
         //send to socket
         fmt.Fprintf(conn, cmd)
 
         //read message from socket
-        buf := make([]byte, 64)
+        buf := make([]byte, BUFFERSIZE)
         reqLen, err := conn.Read(buf)
         if err != nil {
                 fmt.Println(err)
-                return
-        }
-        versions := strings.Split(string(buf[:reqLen]), " ")
-	reqLen, err = conn.Read(buf)
-        if err != nil {
-                fmt.Println(err)
-                return
-        }
-	id := string(buf[:reqLen])
-        conn.Close()
-		
+		return 
+	}
+	reqArr := strings.Split(string(buf[:reqLen]), "\n")
+	versions = strings.Split(reqArr[0], " ")
+	id = reqArr[1]
+	return
+}
+
+func (self *Daemon) SendGetVersionRequest(cmd string) {
+	versions, id := self.GetVersionHelper(cmd)	
 	localFileName, sdfsFileName, _ := ParseGetVersionRequest(cmd)
 	localFullPath := "local/" + localFileName
 	fileName := ""
@@ -568,30 +570,47 @@ func (self *Daemon) SendGetVersionRequest(cmd string) {
 		}	
 	}
 
-	if self.VmId == id {
-			
-	}
+	/*if self.VmId == id {
+		//fileNames := strings.Split(fileName, " ")
+		return
+	}*/
 	name := "fa18-cs425-g69-" + id + ".cs.illinois.edu"
-        conn, err = net.Dial("tcp", name + ":" + self.PortTCP)
+        conn, err := net.Dial("tcp", name + ":" + self.PortTCP)
         if err != nil {
                 fmt.Println(err)
                 return
         }
         defer conn.Close()
-        request := "get_version"
+        request := "get_vers"
         conn.Write([]byte(request))
         conn.Write([]byte(fileName))
 
 	//create new file
 	newFile, err := os.Create(localFullPath)
         if err != nil {
-                panic(err)
+        	fmt.Println(err)
         }
         defer newFile.Close()
-	fileNames := strings.Split(fileName, " ")
-	for _, name := range fileNames {
-		
-	}*/
+	//fileNames := strings.Split(fileName, " ")
+	for _, version := range versions {
+		bufferFileSize := make([]byte, 10)
+		conn.Read(bufferFileSize)
+		fileSize, _ := strconv.ParseInt(strings.Trim(string(bufferFileSize), ":"), 10, 64)
+		var receivedBytes int64
+		newFile.WriteString(version)
+		newFile.WriteString("\n")
+		for true{
+			if (fileSize - receivedBytes) < BUFFERSIZE {
+				io.CopyN(newFile, conn, (fileSize - receivedBytes))
+				conn.Read(make([]byte, (receivedBytes+BUFFERSIZE)-fileSize))
+				break
+			}
+			io.CopyN(newFile, conn, BUFFERSIZE)
+			receivedBytes += BUFFERSIZE
+		}
+		newFile.WriteString("\n")
+	}
+	fmt.Println("Received file completely!")
 }
 ////////////////////helper function////////////////////////////////////////////////
 func FileCopy(source string, destination string) error{
