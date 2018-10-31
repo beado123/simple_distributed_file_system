@@ -398,7 +398,17 @@ func parseRequest(conn net.Conn) {
 			out = out[:(len(out)-1)]
 			fmt.Println("out",out)
 		}
-	} 
+	} else if cmd == "get" {
+		fileName := reqArr[2]
+		fmt.Println(m[fileName])
+		//_, ok := m[fileName]
+		vms := m[fileName]
+		out += strconv.Itoa(version[fileName]) + "\n"
+		for i:=0; i<len(vms); i++ {
+			out += vms[i] + " "
+		}
+		out = out[:(len(out)-1)]
+	}
 	
 	//send response
 	conn.Write([]byte(out))
@@ -408,16 +418,12 @@ func parseRequest(conn net.Conn) {
 func startMaster() {
 
 	pointer = -1
-	vm = []string{"1","2","3","4","5","6","7","8","9"}
+	vm = []string{"01","02","03","04","05","06","07","08","09"}
 	m = make(map[string][4]string)
 	version = make(map[string]int)
-	//assignedMachine := getStorePosition()
-	//m["name"] = assignedMachine	
-	//fmt.Println(m["name"])
 
 	//get ip address from servers list	
 	ip := getIPAddr()
-	//ip := "127.0.0.1"
 	//listen for incoming connections
 	l, err := net.Listen("tcp", ip + ":5678")
 	printErr(err, "listening")
