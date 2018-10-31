@@ -277,6 +277,7 @@ func (self *Daemon) ReceiveGetRequest(conn net.Conn) {
         conn.Read(bufferFileName)
         fileName := strings.Trim(string(bufferFileName), ":")
 	fullPath := "sdfs/" + fileName
+	fmt.Println(fullPath)
 
 	//read file
 	file, err := os.Open(fullPath)
@@ -327,6 +328,8 @@ func (self *Daemon) GetHelper(cmd string) (version string, id string){
 
 func (self *Daemon) SendGetRequest(cmd string) {
 	version, id := self.GetHelper(cmd)
+	fmt.Println(version)
+	fmt.Println(id)
 	//send put request
 	localFileName, sdfsFileName := ParseGetRequest(cmd)
         localFullPath := "local/" + localFileName
