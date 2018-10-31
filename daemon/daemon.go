@@ -371,34 +371,38 @@ func (self *Daemon) SendGetRequest(cmd string) {
 func (self *Daemon) ReceiveDeleteRequest(conn net.Conn) {
 	defer conn.Close()
 	bufferFileName := make([]byte, 64)
-	reqLen, _ := conn.Read(bufferFileName)
-	fileName := string(bufferFileName[:reqLen])
+	conn.Read(bufferFileName)
+	fileName := strings.Trim(string(bufferFileName), ":")
 	DeleteSdfsfile(fileName)
 	response := "deleteACK"
 	conn.Write([]byte(response))
 }
 
-func (self *Daemon) SendDeleteRequest(cmd string) {
+func (self *Daemon) DeleteHelper(cmd string) (reqArr []string) {
 	//connect to master
         conn, err := net.Dial("tcp", self.Master + ":" + self.PortTCP)
         if err != nil {
                 fmt.Println(err)
                 return
         }
+	defer conn.Close()
 
         //send to socket
         fmt.Fprintf(conn, cmd)
 
         //read message from socket
-        buf := make([]byte, 64)
+        buf := make([]byte, BUFFERSIZE)
         reqLen, err := conn.Read(buf)
         if err != nil {
                 fmt.Println(err)
                 return
         }
-        reqArr := strings.Split(string(buf[:reqLen]), " ")
-        conn.Close()
+        reqArr = strings.Split(string(buf[:reqLen]), " ")
+        return
+}
 
+func (self *Daemon) SendDeleteRequest(cmd string) {
+	reqArr := self.DeleteHelper(cmd)
 	var wg sync.WaitGroup
 	var count int = 0
         wg.Add(len(reqArr))
@@ -420,10 +424,10 @@ func (self *Daemon) SendDeleteRequest(cmd string) {
                                 return
                         }
                         defer conn.Close()
-
-			request := "delete_file"
+			request := "del_file"
 			conn.Write([]byte(request))
-                        conn.Write([]byte(sdfsFileName))
+			fileName := fillString(sdfsFileName, 64)
+                        conn.Write([]byte(fileName))
 			
 			//receive deleteACK from replica
 			buf := make([]byte, 64)
