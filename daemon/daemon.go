@@ -120,7 +120,7 @@ func (self *Daemon) ParseRequest(conn net.Conn) {
 		self.ReceivePutRequest(conn)
 	} else if request == "get_file" {
 		self.ReceiveGetRequest(conn)
-	} else if request == "delete_file" {
+	} else if request == "del_file" {
 		self.ReceiveDeleteRequest(conn)
 	}
 }
@@ -272,8 +272,8 @@ func (self *Daemon) ReceiveGetRequest(conn net.Conn) {
 	defer conn.Close()
 	//find file name
 	bufferFileName := make([]byte, 64)
-        reqLen, _ := conn.Read(bufferFileName)
-        fileName := string(bufferFileName[:reqLen])
+        conn.Read(bufferFileName)
+        fileName := strings.Trim(string(bufferFileName), ":")
 	fullPath := "sdfs/" + fileName
 
 	//read file
@@ -326,11 +326,11 @@ func (self *Daemon) SendGetRequest(cmd string) {
 	id := string(buf[:reqLen])
         conn.Close()
 	
+	//send put request
 	localFileName, sdfsFileName := ParseGetRequest(cmd)
         localFullPath := "local/" + localFileName
 	fileName := version + "_" + sdfsFileName
         sdfsFullPath := "sdfs/" + fileName
-	
 	if self.VmId == id {
                	FileCopy(sdfsFullPath, localFullPath)
 		return 
@@ -344,16 +344,16 @@ func (self *Daemon) SendGetRequest(cmd string) {
         defer conn.Close()	
 	request := "get_file"
 	conn.Write([]byte(request))
+	fileName = fillString(fileName, 64)
 	conn.Write([]byte(fileName))
 
+	//receive new file
 	bufferFileSize := make([]byte, 10)
-        reqLen, _ = conn.Read(bufferFileSize)
-        fileSize, _ := strconv.ParseInt(string(bufferFileSize[:reqLen]), 10, 64)
-	
-	//create new file
+        conn.Read(bufferFileSize)
+        fileSize, _ := strconv.ParseInt(string(bufferFileSize), 10, 64)
 	newFile, err := os.Create(localFullPath)
         if err != nil {
-                panic(err)
+        	fmt.Println(err)
         }
         defer newFile.Close()
         var receivedBytes int64
@@ -617,6 +617,9 @@ func FileCopy(source string, destination string) error{
 }
 
 func ParsePutRequest(cmd string) (localFileName string, sdfsFileName string) {
+	if strings.HasSuffix(cmd, "\n") {
+		cmd = cmd[:(len(cmd) - 1)]
+	}
 	reqArr := strings.Split(cmd, " ")
         localFileName = reqArr[1]
         sdfsFileName = reqArr[2]
@@ -624,6 +627,9 @@ func ParsePutRequest(cmd string) (localFileName string, sdfsFileName string) {
 }
 
 func ParseGetRequest(cmd string) (localFileName string, sdfsFileName string) {
+	if strings.HasSuffix(cmd, "\n") {
+                cmd = cmd[:(len(cmd) - 1)]
+        }
         reqArr := strings.Split(cmd, " ")
         localFileName = reqArr[2]
         sdfsFileName = reqArr[1]
@@ -631,12 +637,18 @@ func ParseGetRequest(cmd string) (localFileName string, sdfsFileName string) {
 }
 
 func ParseDeleteRequest(cmd string) (sdfsFileName string) {
+	if strings.HasSuffix(cmd, "\n") {
+                cmd = cmd[:(len(cmd) - 1)]
+        }
 	reqArr := strings.Split(cmd, " ")
 	sdfsFileName = reqArr[1]
 	return
 }
 
 func ParseGetVersionRequest(cmd string) (localFileName string, sdfsFileName string, num string) {
+	if strings.HasSuffix(cmd, "\n") {
+                cmd = cmd[:(len(cmd) - 1)]
+        }
         reqArr := strings.Split(cmd, " ")
         localFileName = reqArr[3]
         sdfsFileName = reqArr[1]
