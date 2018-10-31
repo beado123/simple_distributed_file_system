@@ -299,7 +299,7 @@ func (self *Daemon) ReceiveGetRequest(conn net.Conn) {
         }
 }
 
-func (self *Daemon) SendGetRequest(cmd string) {
+func (self *Daemon) GetHelper(cmd string) (version string, id string){
 	//connect to master
         conn, err := net.Dial("tcp", self.Master + ":" + self.PortTCP)
         if err != nil {
@@ -311,21 +311,20 @@ func (self *Daemon) SendGetRequest(cmd string) {
         fmt.Fprintf(conn, cmd)
 
         //read message from socket
-        buf := make([]byte, 64)
+        buf := make([]byte, BUFFERSIZE)
         reqLen, err := conn.Read(buf)
         if err != nil {
                 fmt.Println(err)
                 return
         }
-	version := string(buf[:reqLen])
-	reqLen, err = conn.Read(buf)
-        if err != nil {
-                fmt.Println(err)
-                return
-        }
-	id := string(buf[:reqLen])
-        conn.Close()
-	
+	reqArr := strings.Split(string(buf[:reqLen]), "\n")
+	version = reqArr[0]
+	id = reqArr[1]
+	return
+}
+
+func (self *Daemon) SendGetRequest(cmd string) {
+	version, id := self.GetHelper(cmd)
 	//send put request
 	localFileName, sdfsFileName := ParseGetRequest(cmd)
         localFullPath := "local/" + localFileName
@@ -336,7 +335,7 @@ func (self *Daemon) SendGetRequest(cmd string) {
 		return 
 	}
 	name := "fa18-cs425-g69-" + id + ".cs.illinois.edu"
-        conn, err = net.Dial("tcp", name + ":" + self.PortTCP)
+        conn, err := net.Dial("tcp", name + ":" + self.PortTCP)
         if err != nil {
         	fmt.Println(err)
         	return
