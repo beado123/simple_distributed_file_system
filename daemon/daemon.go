@@ -118,10 +118,8 @@ func (self *Daemon) ParseRequest(conn net.Conn) {
 	request := string(bufferRequest)
 	if request == "put_file" {
 		self.ReceivePutRequest(conn)
-	} else if request == "get_id" {
-		self.ReceiveGetRequestAndSendFileVersion(conn)
 	} else if request == "get_file" {
-		self.ReceiveGetRequestAndSendFile(conn)
+		self.ReceiveGetRequest(conn)
 	} else if request == "delete_file" {
 		self.ReceiveDeleteRequest(conn)
 	}
@@ -267,19 +265,8 @@ func (self *Daemon) SendPutRequest(cmd string) {
 	}
 }
 
-//This function receives sdfs file name and return the latest version
-func (self *Daemon) ReceiveGetRequestAndSendFileVersion(conn net.Conn) {
-	defer conn.Close()
-	//find file name
-	bufferFileName := make([]byte, 64)
-	reqLen, _ := conn.Read(bufferFileName)
-	fileName := string(bufferFileName[:reqLen])
-	version := GetFileLatestVersion(fileName)
-	conn.Write([]byte(version))
-}
-
 //This function receives sdfs file name and return the file size and the file content
-func (self *Daemon) ReceiveGetRequestAndSendFile(conn net.Conn) {
+func (self *Daemon) ReceiveGetRequest(conn net.Conn) {
 	defer conn.Close()
 	//find file name
 	bufferFileName := make([]byte, 64)
@@ -328,61 +315,25 @@ func (self *Daemon) SendGetRequest(cmd string) {
                 fmt.Println(err)
                 return
         }
-        reqArr := strings.Split(string(buf[:reqLen]), " ")
-        conn.Close()
-
-	//connect to each replica host
-	var wg sync.WaitGroup
-      	var latestVersion int = 0
-	var vmId int = 0
-        wg.Add(len(reqArr))
-        for _, id := range reqArr {
-                go func(id string, cmd string) {
-			_, sdfsFileName := ParseGetRequest(cmd)
-			if id == self.VmId {
-				version := GetFileLatestVersion(sdfsFileName)
-				currVersion, _ := strconv.Atoi(version)
-				if currVersion > latestVersion {
-                                	latestVersion = currVersion
-                                	vmId, _ = strconv.Atoi(id)
-	                        }
-				wg.Done()
-				return
-			}
-
-			name := "fa18-cs425-g69-" + id + ".cs.illinois.edu"
-                        conn, err := net.Dial("tcp", name + ":" + self.PortTCP)
-                        if err != nil {
-                                fmt.Println(err)
-                                wg.Done()
-                                return
-                        }
-                        defer conn.Close()			
-                        request := "get_id"
-			conn.Write([]byte(request))
-                        conn.Write([]byte(sdfsFileName))
-
-			bufferFileVersion := make([]byte, 64)	
-			reqLen, _ := conn.Read(bufferFileVersion)
-			currVersion, _ := strconv.Atoi(string(bufferFileVersion[:reqLen]))
-			if currVersion > latestVersion {
-				latestVersion = currVersion
-				vmId, _ = strconv.Atoi(id)
-			}
-			wg.Done()
-		}(id, cmd)
+	version := string(buf[:reqLen])
+	reqLen, err = conn.Read(buf)
+        if err != nil {
+                fmt.Println(err)
+                return
         }
-        wg.Wait()	
+	id := string(buf[:reqLen])
+        conn.Close()
 	
 	localFileName, sdfsFileName := ParseGetRequest(cmd)
         localFullPath := "local/" + localFileName
-        sdfsFullPath := "sdfs/" + sdfsFileName
+	fileName := version + "_" + sdfsFileName
+        sdfsFullPath := "sdfs/" + fileName
 	//connect the latest replica
-	if self.VmId == strconv.Itoa(vmId) {
+	if self.VmId == id {
                	FileCopy(sdfsFullPath, localFullPath)
 		return 
 	}
-	name := "fa18-cs425-g69-" + strconv.Itoa(vmId) + ".cs.illinois.edu"
+	name := "fa18-cs425-g69-" + id + ".cs.illinois.edu"
         conn, err = net.Dial("tcp", name + ":" + self.PortTCP)
         if err != nil {
         	fmt.Println(err)
@@ -391,7 +342,8 @@ func (self *Daemon) SendGetRequest(cmd string) {
         defer conn.Close()	
 	request := "get_file"
 	conn.Write([]byte(request))
-	conn.Write([]byte(sdfsFileName))
+	conn.Write([]byte(fileName))
+
 	bufferFileSize := make([]byte, 10)
         reqLen, _ = conn.Read(bufferFileSize)
         fileSize, _ := strconv.ParseInt(string(bufferFileSize[:reqLen]), 10, 64)
@@ -559,20 +511,17 @@ func (self *Daemon) SendGetVersionRequest(cmd string) {
                 fmt.Println(err)
                 return
         }
-        reqArr := strings.Split(string(buf[:reqLen]), " ")
-        conn.Close()
-
-	var wg sync.WaitGroup
-        for _, id := range reqArr {
-                go func(id string, cmd string) {
-			if id == self.VmId {
-							
-			}
-			
-			wg.Done()		
-		}(id, cmd)
+        version := strings.Split(string(buf[:reqLen]), " ")
+	reqLen, err = conn.Read(buf)
+        if err != nil {
+                fmt.Println(err)
+                return
         }
-        wg.Wait()*/		
+	id := string(buf[:reqLen])
+        conn.Close()
+		
+	localFileName, sdfsFileName, _ := ParseGetVersionRequest(cmd)*/
+	
 }
 ////////////////////helper function////////////////////////////////////////////////
 func FileCopy(source string, destination string) error{
