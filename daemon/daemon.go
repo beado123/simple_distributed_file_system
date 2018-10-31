@@ -175,12 +175,14 @@ func (self *Daemon) SendPutRequest(cmd string) {
                 return
         }
 	num := string(buf[:reqLen])
+	fmt.Println(num)
 	reqLen, err = conn.Read(buf)
         if err != nil {
                 fmt.Println(err)
                 return
         }
 	reqArr := strings.Split(string(buf[:reqLen]), " ")
+	fmt.Print(reqArr)
 	conn.Close()	
 
 	//connect to each replica host
@@ -626,7 +628,7 @@ func DeleteSdfsfile(fileName string) {
 
 func (self *Daemon) CleanOutSdfs() {
 	if _, err := os.Stat("sdfs"); os.IsNotExist(err) {
-    		os.Mkdir("sdfs", 0666)
+    		os.Mkdir("sdfs", 0777)
 	} else {
 		files,_ := ioutil.ReadDir("sdfs")
 	        for _, file := range files {
