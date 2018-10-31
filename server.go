@@ -380,12 +380,12 @@ func parseRequest(conn net.Conn) {
 		_, ok := m[fileName]
 		if ok {
 			vms := m[fileName]
+			version[fileName]++;
 			out += strconv.Itoa(version[fileName]) + "\n"
 			for i:=0; i<len(vms); i++ {
 				out += vms[i] + " "
 			}
-			out = out[:(len(out)-1)]
-			version[fileName]++;
+			out = out[:(len(out)-1)]			
 		} else {
 			//upload new file
 			version[fileName] = 1
@@ -398,7 +398,7 @@ func parseRequest(conn net.Conn) {
 			out = out[:(len(out)-1)]
 		}
 	} else if cmd == "get" {
-		fileName := reqArr[2]
+		fileName := reqArr[1]
 		fmt.Println(m[fileName])
 		_, ok := m[fileName]
 		if ok {
@@ -408,8 +408,8 @@ func parseRequest(conn net.Conn) {
 		} else {
 			fmt.Println("File", fileName, "does not Exist!")
 		}	
-	} else if cmd == "delete" {
-		fileName := reqArr[2]
+	} else if cmd == "delete" || cmd == "ls" {
+		fileName := reqArr[1]
 		fmt.Println(m[fileName])
 		_, ok := m[fileName]
 		if ok {
