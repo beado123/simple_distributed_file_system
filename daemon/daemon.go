@@ -157,34 +157,37 @@ func (self *Daemon) ReceivePutRequest(conn net.Conn) {
 	conn.Write([]byte(response))
 }
 
-func (self *Daemon) SendPutRequest(cmd string) {
+func (self *Daemon) PutHelper(cmd string) (num string, reqArr []string) {
 	//connect to master
-	conn, err := net.Dial("tcp", self.Master + ":" + self.PortTCP)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	//send to socket
-	fmt.Fprintf(conn, cmd)
-
-	//read message from socket
-	buf := make([]byte, 64)
-	reqLen, err := conn.Read(buf)
-	if err != nil {
-                fmt.Println(err)
-                return
-        }
-	num := string(buf[:reqLen])
-	fmt.Println(num)
-	reqLen, err = conn.Read(buf)
+        conn, err := net.Dial("tcp", self.Master + ":" + self.PortTCP)
         if err != nil {
                 fmt.Println(err)
                 return
         }
-	reqArr := strings.Split(string(buf[:reqLen]), " ")
-	fmt.Print(reqArr)
-	conn.Close()	
+	conn.Close()
+
+        //send to socket
+        fmt.Fprintf(conn, cmd)
+
+        //read message from socket
+        buf := make([]byte, 64)
+        reqLen, err := conn.Read(buf)
+        if err != nil {
+                fmt.Println(err)
+                return
+        }
+        num = string(buf[:reqLen])
+        reqLen, err = conn.Read(buf)
+        if err != nil {
+                fmt.Println(err)
+                return
+        }
+	reqArr = strings.Split(string(buf[:reqLen]), " ")
+	return
+} 
+
+func (self *Daemon) SendPutRequest(cmd string) {
+	num, reqArr := self.PutHelper(cmd)
 
 	//connect to each replica host
 	var wg sync.WaitGroup
