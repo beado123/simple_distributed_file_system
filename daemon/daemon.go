@@ -277,7 +277,6 @@ func (self *Daemon) ReceiveGetRequest(conn net.Conn) {
         conn.Read(bufferFileName)
         fileName := strings.Trim(string(bufferFileName), ":")
 	fullPath := "sdfs/" + fileName
-	fmt.Println(fullPath)
 
 	//read file
 	file, err := os.Open(fullPath)
@@ -290,6 +289,7 @@ func (self *Daemon) ReceiveGetRequest(conn net.Conn) {
         	fmt.Println(err)
                 return
        	}
+	fmt.Println(fileInfo.Size())
         fileSize := fillString(strconv.FormatInt(fileInfo.Size(), 10), 10)
 	conn.Write([]byte(fileSize))
 	sendBuffer := make([]byte, BUFFERSIZE)
@@ -328,8 +328,6 @@ func (self *Daemon) GetHelper(cmd string) (version string, id string){
 
 func (self *Daemon) SendGetRequest(cmd string) {
 	version, id := self.GetHelper(cmd)
-	fmt.Println(version)
-	fmt.Println(id)
 	//send put request
 	localFileName, sdfsFileName := ParseGetRequest(cmd)
         localFullPath := "local/" + localFileName
@@ -354,8 +352,7 @@ func (self *Daemon) SendGetRequest(cmd string) {
 	//receive new file
 	bufferFileSize := make([]byte, 10)
         conn.Read(bufferFileSize)
-        fileSize, _ := strconv.ParseInt(string(bufferFileSize), 10, 64)
-	fmt.Println(fileSize)
+        fileSize, _ := strconv.ParseInt(strings.Trim(string(bufferFileSize), ":"), 10, 64)
 	newFile, err := os.Create(localFullPath)
         if err != nil {
         	fmt.Println(err)
