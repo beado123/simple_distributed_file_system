@@ -370,7 +370,10 @@ func parseRequest(conn net.Conn) {
 	//convert request command into array
 	reqArr := strings.Split(string(buf[:reqLen]), " ")
 	
-	fmt.Println(reqArr[0], reqArr[1], reqArr[2])
+	for i:=0; i<len(reqArr); i++ {
+		fmt.Print(reqArr[i], " ")
+	}
+	fmt.Print("\n")
 
 	cmd := reqArr[0]
 	out := ""
@@ -416,24 +419,43 @@ func parseRequest(conn net.Conn) {
 		} else {
 			fmt.Println("File", fileName, "does not Exist!")
 		}	
-	} else if cmd == "delete" || cmd == "ls" {
-		//"delete/ls sdfsfilename"
+	} else if cmd == "ls" {
+		//"ls sdfsfilename"
 		fileName := reqArr[1]
 		fileName = fileName[:(len(fileName)-1)]
 		fmt.Println(m[fileName])
 		_, ok := m[fileName]
 		if ok {
 			vms := m[fileName]
-			out += strconv.Itoa(version[fileName]) + "\n"
 			for i:=0; i<len(vms); i++ {
 				out += vms[i] + " "
 			}
 			out = out[:(len(out)-1)]
 		} else {
-			fmt.Println("File", fileName, "does not Exist!")
+			fmt.Println("File", fileName, "does not exist!")
+			out = "NOTFOUND"
 		}	
+
+	} else if cmd == "delete" {
+		//"delete sdfsfilename"
+		fileName := reqArr[1]
+		fileName = fileName[:(len(fileName)-1)]
+		fmt.Println(m[fileName])
+		_, ok := m[fileName]
+		if ok {
+			vms := m[fileName]
+			for i:=0; i<len(vms); i++ {
+				out += vms[i] + " "
+			}
+			out  = out[:(len(out)-1)]
+		} else {
+			out = "NOTFOUND"
+			fmt.Println("File", fileName, "does not exist!") 
+		}
+
 	} else if cmd == "get-versions" {
 		//"get-versions sdfsfilename num-versions localfilename"
+		//return version-num1 version-num2\nvm1 vm2
 		fileName := reqArr[1]
 		numVersion, err := strconv.Atoi(reqArr[2])	
 		if err != nil {
@@ -444,6 +466,12 @@ func parseRequest(conn net.Conn) {
 			out += strconv.Itoa(currVersion-i) + " "
 		}
 		out = out[:(len(out) -1)]
+		_, ok := m[fileName]
+		if ok {
+			out += m[fileName][0]
+		} else {
+			fmt.Println("File", fileName, "does not exist!")
+		}
 	}
 
 	fmt.Println("Write back to worker",out)
