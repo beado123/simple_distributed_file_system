@@ -377,13 +377,13 @@ func parseRequest(conn net.Conn) {
 
 	cmd := reqArr[0]
 	out := ""
-	if cmd == "put" {
+	if cmd == "put"{
 		//"put localfilename sdfsfilename"
 		fileName := reqArr[2]
 		fileName = fileName[:len(fileName)-1]
 		fmt.Println("filename", m[fileName])
 		_, ok := m[fileName]
-		if ok {
+		if ok && m[fileName] != nil{
 			vms := m[fileName]
 			version[fileName]++;
 			out += strconv.Itoa(version[fileName]) + "\n"
@@ -412,20 +412,22 @@ func parseRequest(conn net.Conn) {
 		fileName := reqArr[1]
 		fmt.Println("fileName", fileName)
 		_, ok := m[fileName]
-		if ok {
+		if ok && m[fileName] != nil{
 			vms := m[fileName]
 			out += strconv.Itoa(version[fileName]) + "\n"
 			out += vms[0]
 		} else {
 			fmt.Println("File", fileName, "does not Exist!")
+			out = "NOTFOUND"
 		}	
+
 	} else if cmd == "ls" {
 		//"ls sdfsfilename"
 		fileName := reqArr[1]
 		fileName = fileName[:(len(fileName)-1)]
 		fmt.Println(m[fileName])
 		_, ok := m[fileName]
-		if ok {
+		if ok && m[fileName] != nil {
 			vms := m[fileName]
 			for i:=0; i<len(vms); i++ {
 				out += vms[i] + " "
@@ -448,6 +450,8 @@ func parseRequest(conn net.Conn) {
 				out += vms[i] + " "
 			}
 			out  = out[:(len(out)-1)]
+			m[fileName] = nil
+			version[fileName] = -1
 		} else {
 			out = "NOTFOUND"
 			fmt.Println("File", fileName, "does not exist!") 
@@ -468,7 +472,7 @@ func parseRequest(conn net.Conn) {
 		out = out[:(len(out) -1)]
 		_, ok := m[fileName]
 		if ok {
-			out += m[fileName][0]
+			out += "\n" + m[fileName][0]
 		} else {
 			fmt.Println("File", fileName, "does not exist!")
 		}
