@@ -289,6 +289,7 @@ func (self *Daemon) ReceiveGetRequest(conn net.Conn) {
         	fmt.Println(err)
                 return
        	}
+	fmt.Println(fileInfo.Size())
         fileSize := fillString(strconv.FormatInt(fileInfo.Size(), 10), 10)
 	conn.Write([]byte(fileSize))
 	sendBuffer := make([]byte, BUFFERSIZE)
@@ -351,7 +352,8 @@ func (self *Daemon) SendGetRequest(cmd string) {
 	//receive new file
 	bufferFileSize := make([]byte, 10)
         conn.Read(bufferFileSize)
-        fileSize, _ := strconv.ParseInt(string(bufferFileSize), 10, 64)
+        fileSize, _ := strconv.ParseInt(strings.Trim(string(bufferFileSize), ":"), 10, 64)
+	//fmt.Println(fileSize)
 	newFile, err := os.Create(localFullPath)
         if err != nil {
         	fmt.Println(err)
