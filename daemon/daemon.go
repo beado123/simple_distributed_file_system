@@ -510,6 +510,7 @@ func (self *Daemon) ReceiveGetVersionRequest(conn net.Conn) {
 	bufferFileName := make([]byte, BUFFERSIZE)
         reqLen, _ := conn.Read(bufferFileName)
         fileNames := strings.Split(string(bufferFileName[:reqLen]), " ")
+	fmt.Println(fileNames)
 	
 	//read file
 	for _, fileName := range fileNames {
@@ -563,6 +564,7 @@ func (self *Daemon) GetVersionHelper(cmd string) (versions []string, id string) 
 }
 
 func (self *Daemon) SendGetVersionRequest(cmd string) {
+	fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~")
 	versions, id := self.GetVersionHelper(cmd)
 	fmt.Println(versions)
 	fmt.Println(id)
