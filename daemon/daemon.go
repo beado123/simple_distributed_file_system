@@ -478,6 +478,9 @@ func (self *Daemon) SendLsRequest(cmd string) {
                 return
         }
         reqArr := strings.Split(string(buf[:reqLen]), " ")
+	if reqArr[0] == "NOTFOUND" {
+		return
+	}
 	for _, id := range reqArr {
 		name := "fa18-cs425-g69-" + id + ".cs.illinois.edu"
 		fmt.Println(name)
