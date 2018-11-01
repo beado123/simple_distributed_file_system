@@ -563,9 +563,12 @@ func (self *Daemon) GetVersionHelper(cmd string) (versions []string, id string) 
 }
 
 func (self *Daemon) SendGetVersionRequest(cmd string) {
-	versions, id := self.GetVersionHelper(cmd)	
+	versions, id := self.GetVersionHelper(cmd)
+	fmt.Println(versions)
+	fmt.Println(id)
 	localFileName, sdfsFileName, _ := ParseGetVersionRequest(cmd)
 	localFullPath := "local/" + localFileName
+	fmt.Println(localFullPath)
 	fileName := ""
 	for i, version := range versions {
 		if i == len(versions) - 1 {
@@ -574,6 +577,7 @@ func (self *Daemon) SendGetVersionRequest(cmd string) {
 			fileName += version + "_" + sdfsFileName + " "
 		}	
 	}
+	fmt.Println(fileName)
 
 	/*if self.VmId == id {
 		//fileNames := strings.Split(fileName, " ")
@@ -588,6 +592,7 @@ func (self *Daemon) SendGetVersionRequest(cmd string) {
         defer conn.Close()
         request := "get_vers"
         conn.Write([]byte(request))
+	fileName = fillString(fileName, BUFFERSIZE)
         conn.Write([]byte(fileName))
 
 	//create new file
