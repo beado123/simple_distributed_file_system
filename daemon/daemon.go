@@ -508,9 +508,9 @@ func (self *Daemon) StoreRequest() {
 func (self *Daemon) ReceiveGetVersionRequest(conn net.Conn) {
 	defer conn.Close()
 	bufferFileName := make([]byte, BUFFERSIZE)
-        reqLen, _ := conn.Read(bufferFileName)
-        fileNames := strings.Split(string(bufferFileName[:reqLen]), " ")
-	fmt.Println(fileNames)
+        conn.Read(bufferFileName)
+        fileNames := strings.Split(string(strings.Trim(string(bufferFileName), ":"), " ")
+	fmt.Println(fileNaimes)
 	
 	//read file
 	for _, fileName := range fileNames {
