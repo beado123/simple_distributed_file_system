@@ -622,7 +622,7 @@ func (self *Daemon) SendGetVersionRequest(cmd string) {
 		}
 		newFile.WriteString("\n")
 	}
-	fmt.Println("Received file completely!")
+	fmt.Println("Received latest file completely!")
 }
 ////////////////////helper function////////////////////////////////////////////////
 func FileCopy(source string, destination string) error{

@@ -43,7 +43,9 @@ func main() {
                                 d.PrintMembershipList()
                         } else if strings.Contains(cmd, "SELF") {
 				d.PrintId()
-			} else if strings.Contains(cmd, "put") {
+			} else if strings.Contains(cmd, "get-versions") {
+                                d.SendGetVersionRequest(cmd)
+                        } else if strings.Contains(cmd, "put") {
 				d.SendPutRequest(cmd)
 			} else if strings.Contains(cmd, "get") {
 				d.SendGetRequest(cmd)
@@ -53,8 +55,6 @@ func main() {
 				d.SendLsRequest(cmd)
 			} else if strings.Contains(cmd, "store") {
 				d.StoreRequest()
-			} else if strings.Contains(cmd, "get-versions") {
-				d.SendGetVersionRequest(cmd)
 			} else {
 				fmt.Println("Input does not match any commads!")	
 			}
