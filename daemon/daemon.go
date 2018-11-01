@@ -510,7 +510,6 @@ func (self *Daemon) ReceiveGetVersionRequest(conn net.Conn) {
 	bufferFileName := make([]byte, BUFFERSIZE)
         conn.Read(bufferFileName)
         fileNames := strings.Split(strings.Trim(string(bufferFileName), ":"), " ")
-	fmt.Println(fileNames)
 	
 	//read file
 	for _, fileName := range fileNames {
@@ -564,10 +563,7 @@ func (self *Daemon) GetVersionHelper(cmd string) (versions []string, id string) 
 }
 
 func (self *Daemon) SendGetVersionRequest(cmd string) {
-	fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~")
 	versions, id := self.GetVersionHelper(cmd)
-	fmt.Println(versions)
-	fmt.Println(id)
 	localFileName, sdfsFileName, _ := ParseGetVersionRequest(cmd)
 	localFullPath := "local/" + localFileName
 	fmt.Println(localFullPath)
@@ -579,7 +575,6 @@ func (self *Daemon) SendGetVersionRequest(cmd string) {
 			fileName += version + "_" + sdfsFileName + " "
 		}	
 	}
-	fmt.Println(fileName)
 
 	/*if self.VmId == id {
 		//fileNames := strings.Split(fileName, " ")
