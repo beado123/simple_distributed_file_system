@@ -247,7 +247,7 @@ func parseUDPRequest(buf []byte, length int) {
 	remoteIP := strings.Split(string(acceptMachineAddr.String()[:]), ":")
 	ips[machine] = remoteIP[0]
 
-	fmt.Fprintln(logWriter, "Parsing request...", command, machine)
+	//fmt.Fprintln(logWriter, "Parsing request...", command, machine)
 
 	if command == "JOIN" {
 		//update membership list
@@ -375,10 +375,10 @@ func parseRequest(conn net.Conn) {
 	cmd := reqArr[0]
 	out := ""
 	if cmd == "put" {
+		//"put localfilename sdfsfilename"
 		fileName := reqArr[2]
 		fileName = fileName[:len(fileName)-1]
-		fmt.Println("put size of file name", len(fileName))
-		fmt.Println(m[fileName])
+		fmt.Println("filename", m[fileName])
 		_, ok := m[fileName]
 		if ok {
 			vms := m[fileName]
@@ -405,10 +405,9 @@ func parseRequest(conn net.Conn) {
 			out = out[:(len(out)-1)]
 		}
 	} else if cmd == "get" {
+		//"get sdfsfilename localfilename"
 		fileName := reqArr[1]
 		fmt.Println("fileName", fileName)
-		fmt.Println("m[",fileName, "]:",  m[fileName])
-		fmt.Println("m[fileName][0]", m[fileName][0])
 		_, ok := m[fileName]
 		if ok {
 			vms := m[fileName]
@@ -418,6 +417,7 @@ func parseRequest(conn net.Conn) {
 			fmt.Println("File", fileName, "does not Exist!")
 		}	
 	} else if cmd == "delete" || cmd == "ls" {
+		//"delete/ls sdfsfilename"
 		fileName := reqArr[1]
 		fileName = fileName[:(len(fileName)-1)]
 		fmt.Println(m[fileName])
@@ -432,9 +432,21 @@ func parseRequest(conn net.Conn) {
 		} else {
 			fmt.Println("File", fileName, "does not Exist!")
 		}	
+	} else if cmd == "get-versions" {
+		//"get-versions sdfsfilename num-versions localfilename"
+		fileName := reqArr[1]
+		numVersion, err := strconv.Atoi(reqArr[2])	
+		if err != nil {
+			fmt.Println(err)
+		}
+		currVersion := version[fileName]
+		for i:=0; i<numVersion; i++ {
+			out += strconv.Itoa(currVersion-i) + " "
+		}
+		out = out[:(len(out) -1)]
 	}
 
-	fmt.Println("out",out)
+	fmt.Println("Write back to worker",out)
 	//send response
 	conn.Write([]byte(out))
 	//close connection
@@ -455,12 +467,12 @@ func startMaster() {
 	
 	//close the listener when app closes
 	defer l.Close()
-	fmt.Println("Listening on port 3000")
+	fmt.Println("Listening on port 5678")
 
 	//Listen for incoming connections
 	for {
 		conn, err := l.Accept()
-		fmt.Println("Accept:", conn.RemoteAddr().String())
+		fmt.Println("TCP Accept:", conn.RemoteAddr().String())
 		printErr(err, "accepting")
 
 		go parseRequest(conn)
