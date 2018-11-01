@@ -509,8 +509,8 @@ func (self *Daemon) ReceiveGetVersionRequest(conn net.Conn) {
 	defer conn.Close()
 	bufferFileName := make([]byte, BUFFERSIZE)
         conn.Read(bufferFileName)
-        fileNames := strings.Split(string(strings.Trim(string(bufferFileName), ":"), " ")
-	fmt.Println(fileNaimes)
+        fileNames := strings.Split(strings.Trim(string(bufferFileName), ":"), " ")
+	fmt.Println(fileNames)
 	
 	//read file
 	for _, fileName := range fileNames {
