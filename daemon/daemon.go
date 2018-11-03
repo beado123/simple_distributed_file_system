@@ -573,7 +573,7 @@ func (self *Daemon) SendGetVersionRequest(cmd string) {
 	versions, id := self.GetVersionHelper(cmd)
 	localFileName, sdfsFileName, _ := ParseGetVersionRequest(cmd)
 	localFullPath := "local/" + localFileName
-	fmt.Println(localFullPath)
+	//fmt.Println(localFullPath)
 	fileName := ""
 	for i, version := range versions {
 		if i == len(versions) - 1 {
@@ -583,9 +583,11 @@ func (self *Daemon) SendGetVersionRequest(cmd string) {
 		}	
 	}
 
-	if self.VmId == id {		
+	if self.VmId == id {	
+		FileCopyToOne(localFullPath, sdfsFileName, versions)	
 		return
 	}
+
 	name := "fa18-cs425-g69-" + id + ".cs.illinois.edu"
         conn, err := net.Dial("tcp", name + ":" + self.PortTCP)
         if err != nil {
