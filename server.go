@@ -250,7 +250,7 @@ func parseUDPRequest(buf []byte, length int) {
 	remoteIP := strings.Split(string(acceptMachineAddr.String()[:]), ":")
 	ips[machine] = remoteIP[0]
 
-	fmt.Println("Parsing request...", command, machine)
+	//fmt.Println("Parsing request...", command, machine)
 
 
 	if command == "JOIN" {
@@ -271,12 +271,12 @@ func parseUDPRequest(buf []byte, length int) {
 		if exist == false {
 			return
 		}
-		fmt.Fprintf(logWriter, "====DOWN crashed machine: %s\n", machine)		
+		fmt.Fprintf(logWriter, "====DOWN crashed machine: %s\n", machine)
+		fmt.Printf("%s is down\n", machine)
+		fmt.Println("updated membership list:",lst)		
 		//delete crashed machine from membership list
 		removeFromList(machine)
 		reassignFilesToOtherVM(machine)
-		fmt.Println("%s is down\n", machine)
-		fmt.Println("updated membership list:%v\n", lst)
 		sendMembershipListToPinger()
 
 	} else if command == "LEAVE" {
@@ -341,7 +341,7 @@ func startIntroducer() {
 		
 		acceptMachineAddr = remoteAddr
 		parseUDPRequest(buf, n)        
-    }
+   }
 }
 
 func reassignFilesToOtherVM(machine string) {
@@ -364,21 +364,22 @@ func reassignFilesToOtherVM(machine string) {
 			machineIndex = i
 		}
 	}
-	m[oneFile] = append(m[oneFile][:machineIndex], m[oneFile][:machineIndex+1]...)
-	fmt.Printf("after removing %#v\n", m[oneFile])
+	m[oneFile] = append(m[oneFile][:machineIndex], m[oneFile][machineIndex+1:]...)
+	fmt.Println("after removing:",  m[oneFile])
 	//find vm other than VMs in m[oneFile]
 	newVm := -1
-	for i:=0; i<len(vm); i++ {
+	for i:=0; i<len(lst); i++ {
 		for j:=0; j<len(m[oneFile]); j++ {
-			if vm[i] != m[oneFile][j] {
+			if lst[i] != m[oneFile][j] {
 				newVm = i
 			}
 		}
 	}
-	conn, err := net.Dial("tcp", fmt.Sprintf("%s%s%s", "fa18-cs425-g69-", machine, ".cs.illinois.edu:5678"))
+	m[oneFile] = append(m[oneFile], lst[newVm])
+	conn, err := net.Dial("tcp", fmt.Sprintf("%s%s%s", "fa18-cs425-g69-", m[oneFile][0], ".cs.illinois.edu:5678"))
 	checkErr(err)
 	_, err = conn.Write([]byte("FAILFAIL"))
-	_, err = conn.Write([]byte(vm[newVm]))
+	_, err = conn.Write([]byte(lst[newVm]))
 	checkErr(err)
 }
 
@@ -386,21 +387,21 @@ func reassignFilesToOtherVM(machine string) {
 func getStorePosition() [4]string{
 	n := len(lst)
 	arr := [4]string{}
-	fmt.Println(pointer,vm)
+	fmt.Println(pointer,lst)
 	if pointer + 1 < n {
-		arr[0] = vm[pointer+1]
-	} else {arr[0] = vm[0]}
+		arr[0] = lst[pointer+1]
+	} else {arr[0] = lst[0]}
 	if pointer + 2 < n {
-		arr[1] = vm[pointer+2]
-	} else {arr[1] = vm[(pointer+2-n)]}
+		arr[1] = lst[pointer+2]
+	} else {arr[1] = lst[(pointer+2-n)]}
 	if pointer + 3 < n {
-		arr[2] = vm[pointer+3]
-	} else {arr[2] = vm[pointer+3-n]}
+		arr[2] = lst[pointer+3]
+	} else {arr[2] = lst[pointer+3-n]}
 	if pointer + 4 < n {
-		arr[3] = vm[pointer+4]	
+		arr[3] = lst[pointer+4]	
 		pointer += 4
 	} else {
-		arr[3] = vm[pointer+4-n]
+		arr[3] = lst[pointer+4-n]
 		pointer = n-(pointer+4)
 	}
 	return arr
@@ -470,7 +471,7 @@ func parseRequest(conn net.Conn) {
 		//"ls sdfsfilename"
 		fileName := reqArr[1]
 		fileName = fileName[:(len(fileName)-1)]
-		fmt.Println(m[fileName])
+		fmt.Println("ls", m[fileName])
 		_, ok := m[fileName]
 		if ok && m[fileName] != nil {
 			vms := m[fileName]
@@ -532,7 +533,7 @@ func parseRequest(conn net.Conn) {
 func startMaster() {
 
 	pointer = -1
-	vm = []string{"01","02","03","04","05","06","07","08","09"}
+	//vm = []string{"01","02","03","04","05","06","07","08","09"}
 	m = make(map[string][]string)
 	version = make(map[string]int)
 
