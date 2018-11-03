@@ -631,8 +631,9 @@ func (self *Daemon) SendGetVersionRequest(cmd string) {
 //re-replicate
 func (self *Daemon) ReceiveReplicateRequestFromMaster(conn net.Conn) {
 	bufferId := make([]byte, 64)
-	conn.Read(bufferId)
-	id := string(bufferId)
+	reqLen, _ := conn.Read(bufferId)
+	id := string(bufferId[:reqLen])
+	fmt.Println(id)
 
 	//set up connection with id VM
 	conn, err := net.Dial("tcp", "fa18-cs425-g69-" + id + ".cs.illinois.edu:" + self.PortTCP)
@@ -648,6 +649,7 @@ func (self *Daemon) ReceiveReplicateRequestFromMaster(conn net.Conn) {
 	files,_ := ioutil.ReadDir("sdfs")
 	for _, file := range files {
 		fullPath := "sdfs/" + file.Name()
+		fmt.Println(fullPath)
 		file, err := os.Open(fullPath)
 	        if err != nil {
         		fmt.Println(err)
@@ -682,7 +684,9 @@ func (self *Daemon) ReceiveReplicateRequestFromWorker(conn net.Conn) {
 			break
 		}
         	fileName := strings.Trim(string(bufferFileName), ":")
-		fullPath := "sdfs/" + fileName
+		//fullPath := "sdfs/" + fileName
+		fullPath := fileName
+		fmt.Println(fullPath)
 		bufferFileSize := make([]byte, 10)
 		conn.Read(bufferFileSize)
 		fileSize, _ := strconv.ParseInt(strings.Trim(string(bufferFileSize), ":"), 10, 64)
