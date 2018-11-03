@@ -730,9 +730,36 @@ func FileCopy(source string, destination string) error{
 	return err
 }
 
-/*func FileCopyToOne(source string, destination string) {
-	
-}*/
+func FileCopyToOne(localFullPath string, sdfsFileName string, versions []string) {
+	//create new file
+	newFile, err := os.Create(localFullPath)
+        if err != nil {
+        	fmt.Println(err)
+        }
+        newFile.Close()
+
+	for _, version := range versions {
+		fileName := version + "_" + sdfsFileName	
+		sdfsFullPath := "sdfs/" + fileName
+		from, err := os.Open(sdfsFullPath)
+	        if err != nil {
+        	        fmt.Println(err)
+               		return
+        	}
+        	defer from.Close()
+		to, err := os.OpenFile(localFullPath, os.O_APPEND|os.O_WRONLY, 0666)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		defer to.Close()
+		_, err = io.Copy(to, from)
+	        if err != nil {
+        	        fmt.Println(err)
+                	return
+        	}
+	}	
+}
 
 func ParsePutRequest(cmd string) (localFileName string, sdfsFileName string) {
 	if strings.HasSuffix(cmd, "\n") {
