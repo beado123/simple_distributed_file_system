@@ -124,6 +124,10 @@ func (self *Daemon) ParseRequest(conn net.Conn) {
 		self.ReceiveDeleteRequest(conn)
 	} else if request == "get_vers" {
 		self.ReceiveGetVersionRequest(conn)
+	} else if request == "mdzzmdzz" {
+		self.ReceiveReplicateRequestFromWorker(conn)
+	} else if request == "failfail" {
+		self.ReceiveReplicateRequestFromMaster(conn)
 	}
 }
 
@@ -328,6 +332,9 @@ func (self *Daemon) GetHelper(cmd string) (version string, id string){
 
 func (self *Daemon) SendGetRequest(cmd string) {
 	version, id := self.GetHelper(cmd)
+	if version == "NOTFOUND" {
+		return
+	}
 	//send put request
 	localFileName, sdfsFileName := ParseGetRequest(cmd)
         localFullPath := "local/" + localFileName
@@ -576,10 +583,9 @@ func (self *Daemon) SendGetVersionRequest(cmd string) {
 		}	
 	}
 
-	/*if self.VmId == id {
-		//fileNames := strings.Split(fileName, " ")
+	if self.VmId == id {		
 		return
-	}*/
+	}
 	name := "fa18-cs425-g69-" + id + ".cs.illinois.edu"
         conn, err := net.Dial("tcp", name + ":" + self.PortTCP)
         if err != nil {
@@ -619,6 +625,85 @@ func (self *Daemon) SendGetVersionRequest(cmd string) {
 	}
 	fmt.Println("Received latest file completely!")
 }
+
+//re-replicate
+func (self *Daemon) ReceiveReplicateRequestFromMaster(conn net.Conn) {
+	bufferId := make([]byte, 64)
+	conn.Read(bufferId)
+	id := string(bufferId)
+
+	//set up connection with id VM
+	conn, err := net.Dial("tcp", "fa18-cs425-g69-" + id + ".cs.illinois.edu:" + self.PortTCP)
+        if err != nil {
+                fmt.Println(err)
+                return
+        }
+	defer conn.Close()
+
+	request := "mdzzmdzz"
+	conn.Write([]byte(request))
+	//file transfer
+	files,_ := ioutil.ReadDir("sdfs")
+	for _, file := range files {
+		fullPath := "sdfs/" + file.Name()
+		file, err := os.Open(fullPath)
+	        if err != nil {
+        		fmt.Println(err)
+               		return
+        	}
+        	fileInfo, err := file.Stat()
+        	if err != nil {
+        		fmt.Println(err)
+                	return
+       		}
+		fileName := fillString(file.Name(), 64)
+		conn.Write([]byte(fileName))
+		fileSize := fillString(strconv.FormatInt(fileInfo.Size(), 10), 10)
+		conn.Write([]byte(fileSize))
+		sendBuffer := make([]byte, BUFFERSIZE)
+        	for true{
+        		_, err = file.Read(sendBuffer)
+                	if err == io.EOF {
+                		break
+                	}
+                	conn.Write(sendBuffer)
+        	}
+	}	
+}
+
+func (self *Daemon) ReceiveReplicateRequestFromWorker(conn net.Conn) {
+	defer conn.Close()
+	for true {
+		bufferFileName := make([]byte, 64)
+        	_, err := conn.Read(bufferFileName)
+		if err == io.EOF {
+			break
+		}
+        	fileName := strings.Trim(string(bufferFileName), ":")
+		fullPath := "sdfs/" + fileName
+		bufferFileSize := make([]byte, 10)
+		conn.Read(bufferFileSize)
+		fileSize, _ := strconv.ParseInt(strings.Trim(string(bufferFileSize), ":"), 10, 64)
+
+		//create new file
+		newFile, err := os.Create(fullPath)
+        	if err != nil {
+        		fmt.Println(err)
+        	}
+        	defer newFile.Close()
+		var receivedBytes int64
+		for true{
+			if (fileSize - receivedBytes) < BUFFERSIZE {
+				io.CopyN(newFile, conn, (fileSize - receivedBytes))
+				conn.Read(make([]byte, (receivedBytes+BUFFERSIZE)-fileSize))
+				break
+			}
+			io.CopyN(newFile, conn, BUFFERSIZE)
+			receivedBytes += BUFFERSIZE
+		}
+	}
+}
+
 ////////////////////helper function////////////////////////////////////////////////
 func FileCopy(source string, destination string) error{
 	fmt.Println(source)
@@ -644,6 +729,10 @@ func FileCopy(source string, destination string) error{
   	}
 	return err
 }
+
+/*func FileCopyToOne(source string, destination string) {
+	
+}*/
 
 func ParsePutRequest(cmd string) (localFileName string, sdfsFileName string) {
 	if strings.HasSuffix(cmd, "\n") {

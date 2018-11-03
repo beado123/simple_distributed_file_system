@@ -250,7 +250,8 @@ func parseUDPRequest(buf []byte, length int) {
 	remoteIP := strings.Split(string(acceptMachineAddr.String()[:]), ":")
 	ips[machine] = remoteIP[0]
 
-	fmt.Fprintln(logWriter, "Parsing request...", command, machine)
+	fmt.Println("Parsing request...", command, machine)
+
 
 	if command == "JOIN" {
 		//update membership list
@@ -274,8 +275,8 @@ func parseUDPRequest(buf []byte, length int) {
 		//delete crashed machine from membership list
 		removeFromList(machine)
 		reassignFilesToOtherVM(machine)
-		fmt.Fprintf(logWriter, "%s is down\n", machine)
-		fmt.Fprintf(logWriter, "updated membership list:%v\n", lst)
+		fmt.Println("%s is down\n", machine)
+		fmt.Println("updated membership list:%v\n", lst)
 		sendMembershipListToPinger()
 
 	} else if command == "LEAVE" {
