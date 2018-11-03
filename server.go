@@ -14,6 +14,7 @@ var m map[string][]string
 var version map[string]int
 var vm []string
 var pointer int
+var ipPart string
 
 //membership list of introducer
 var lst []string
@@ -72,8 +73,10 @@ func removeFromList(p string) {
 	} 
 	for i := index; i < len(lst)-1; i++ {
 		lst[i] = lst[i+1]
+		vm[i] = lst[i+1]
 	}
 	lst = lst[:len(lst)-1]
+	vm = vm[:len(vm)-1]
 }
 
 //This function sends response back to udp packet sender
@@ -247,7 +250,7 @@ func parseUDPRequest(buf []byte, length int) {
 	remoteIP := strings.Split(string(acceptMachineAddr.String()[:]), ":")
 	ips[machine] = remoteIP[0]
 
-	//fmt.Fprintln(logWriter, "Parsing request...", command, machine)
+	fmt.Fprintln(logWriter, "Parsing request...", command, machine)
 
 	if command == "JOIN" {
 		//update membership list
@@ -270,10 +273,10 @@ func parseUDPRequest(buf []byte, length int) {
 		fmt.Fprintf(logWriter, "====DOWN crashed machine: %s\n", machine)		
 		//delete crashed machine from membership list
 		removeFromList(machine)
+		reassignFilesToOtherVM(machine)
 		fmt.Fprintf(logWriter, "%s is down\n", machine)
 		fmt.Fprintf(logWriter, "updated membership list:%v\n", lst)
 		sendMembershipListToPinger()
-		broadcast("DOWN", machine)
 
 	} else if command == "LEAVE" {
 		joinMachineNum = ""
@@ -339,24 +342,65 @@ func startIntroducer() {
 		parseUDPRequest(buf, n)        
     }
 }
+
+func reassignFilesToOtherVM(machine string) {
+
+	fileArr := []string{}
+	for file,_ := range m {
+		for _,vm := range m[file] {
+			if vm == machine {
+				fileArr = append(fileArr, file)
+			}
+		}
+	}
+	oneFile := fileArr[0]
+	fmt.Printf("files in crashed machine: %#v\n", fileArr)
+	fmt.Println("vm group of", oneFile, m[oneFile])
+	//remove crashed machine from m[oneFile]
+	machineIndex := -1
+	for i:=0; i<len(m[oneFile]); i++ {
+		if m[oneFile][i] == machine {
+			machineIndex = i
+		}
+	}
+	m[oneFile] = append(m[oneFile][:machineIndex], m[oneFile][:machineIndex+1]...)
+	fmt.Printf("after removing %#v\n", m[oneFile])
+	//find vm other than VMs in m[oneFile]
+	newVm := -1
+	for i:=0; i<len(vm); i++ {
+		for j:=0; j<len(m[oneFile]); j++ {
+			if vm[i] != m[oneFile][j] {
+				newVm = i
+			}
+		}
+	}
+	conn, err := net.Dial("tcp", fmt.Sprintf("%s%s%s", "fa18-cs425-g69-", machine, ".cs.illinois.edu:5678"))
+	checkErr(err)
+	_, err = conn.Write([]byte("FAILFAIL"))
+	_, err = conn.Write([]byte(vm[newVm]))
+	checkErr(err)
+}
+
+
 func getStorePosition() [4]string{
+	n := len(lst)
 	arr := [4]string{}
 	fmt.Println(pointer,vm)
-	if pointer + 1 < 9 {
+	if pointer + 1 < n {
 		arr[0] = vm[pointer+1]
 	} else {arr[0] = vm[0]}
-	if pointer + 2 < 9 {
+	if pointer + 2 < n {
 		arr[1] = vm[pointer+2]
-	} else {arr[1] = vm[(pointer+2-9)]}
-	if pointer + 3 < 9 {
+	} else {arr[1] = vm[(pointer+2-n)]}
+	if pointer + 3 < n {
 		arr[2] = vm[pointer+3]
-	} else {arr[2] = vm[pointer+3-9]}
-	if pointer + 4 < 9 {
+	} else {arr[2] = vm[pointer+3-n]}
+	if pointer + 4 < n {
 		arr[3] = vm[pointer+4]	
 		pointer += 4
 	} else {
-		arr[3] = vm[pointer+4-9]
-		pointer = 9-(pointer+4)
+		arr[3] = vm[pointer+4-n]
+		pointer = n-(pointer+4)
 	}
 	return arr
 }
@@ -511,7 +555,7 @@ func startMaster() {
 	}
 }
 func main() {
-
+	
 	for true {
 		buf := bufio.NewReader(os.Stdin)
 		input, err := buf.ReadBytes('\n')
