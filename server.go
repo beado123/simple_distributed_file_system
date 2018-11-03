@@ -250,7 +250,7 @@ func parseUDPRequest(buf []byte, length int) {
 	remoteIP := strings.Split(string(acceptMachineAddr.String()[:]), ":")
 	ips[machine] = remoteIP[0]
 
-	fmt.Println("Parsing request...", command, machine)
+	//fmt.Println("Parsing request...", command, machine)
 
 
 	if command == "JOIN" {
@@ -271,12 +271,12 @@ func parseUDPRequest(buf []byte, length int) {
 		if exist == false {
 			return
 		}
-		fmt.Fprintf(logWriter, "====DOWN crashed machine: %s\n", machine)		
+		fmt.Fprintf(logWriter, "====DOWN crashed machine: %s\n", machine)
+		fmt.Printf("%s is down\n", machine)
+		fmt.Println("updated membership list:",lst)		
 		//delete crashed machine from membership list
 		removeFromList(machine)
 		reassignFilesToOtherVM(machine)
-		fmt.Println("%s is down\n", machine)
-		fmt.Println("updated membership list:%v\n", lst)
 		sendMembershipListToPinger()
 
 	} else if command == "LEAVE" {
@@ -341,7 +341,7 @@ func startIntroducer() {
 		
 		acceptMachineAddr = remoteAddr
 		parseUDPRequest(buf, n)        
-    }
+   }
 }
 
 func reassignFilesToOtherVM(machine string) {
@@ -364,8 +364,8 @@ func reassignFilesToOtherVM(machine string) {
 			machineIndex = i
 		}
 	}
-	m[oneFile] = append(m[oneFile][:machineIndex], m[oneFile][:machineIndex+1]...)
-	fmt.Printf("after removing %#v\n", m[oneFile])
+	m[oneFile] = append(m[oneFile][:machineIndex], m[oneFile][machineIndex+1:]...)
+	fmt.Println("after removing:",  m[oneFile])
 	//find vm other than VMs in m[oneFile]
 	newVm := -1
 	for i:=0; i<len(vm); i++ {
@@ -375,7 +375,8 @@ func reassignFilesToOtherVM(machine string) {
 			}
 		}
 	}
-	conn, err := net.Dial("tcp", fmt.Sprintf("%s%s%s", "fa18-cs425-g69-", machine, ".cs.illinois.edu:5678"))
+	m[oneFile] = append(m[oneFile], vm[newVm])
+	conn, err := net.Dial("tcp", fmt.Sprintf("%s%s%s", "fa18-cs425-g69-", m[oneFile][0], ".cs.illinois.edu:5678"))
 	checkErr(err)
 	_, err = conn.Write([]byte("FAILFAIL"))
 	_, err = conn.Write([]byte(vm[newVm]))
@@ -470,7 +471,7 @@ func parseRequest(conn net.Conn) {
 		//"ls sdfsfilename"
 		fileName := reqArr[1]
 		fileName = fileName[:(len(fileName)-1)]
-		fmt.Println(m[fileName])
+		fmt.Println("ls", m[fileName])
 		_, ok := m[fileName]
 		if ok && m[fileName] != nil {
 			vms := m[fileName]
