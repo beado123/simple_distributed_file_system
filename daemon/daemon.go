@@ -633,6 +633,7 @@ func (self *Daemon) ReceiveReplicateRequestFromMaster(conn net.Conn) {
 	bufferId := make([]byte, 64)
 	conn.Read(bufferId)
 	id := string(bufferId)
+	fmt.Println(id)
 
 	//set up connection with id VM
 	conn, err := net.Dial("tcp", "fa18-cs425-g69-" + id + ".cs.illinois.edu:" + self.PortTCP)
@@ -683,6 +684,7 @@ func (self *Daemon) ReceiveReplicateRequestFromWorker(conn net.Conn) {
 		}
         	fileName := strings.Trim(string(bufferFileName), ":")
 		fullPath := "sdfs/" + fileName
+		fmt.Println(fullPath)
 		bufferFileSize := make([]byte, 10)
 		conn.Read(bufferFileSize)
 		fileSize, _ := strconv.ParseInt(strings.Trim(string(bufferFileSize), ":"), 10, 64)
