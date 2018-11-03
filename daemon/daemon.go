@@ -755,11 +755,14 @@ func FileCopyToOne(localFullPath string, sdfsFileName string, versions []string)
 			return
 		}
 		defer to.Close()
+		to.WriteString(version)
+		to.WriteString("\n")
 		_, err = io.Copy(to, from)
 	        if err != nil {
         	        fmt.Println(err)
                 	return
         	}
+		to.WriteString("\n")
 	}	
 }
 
