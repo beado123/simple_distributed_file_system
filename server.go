@@ -418,7 +418,7 @@ func parseRequest(conn net.Conn) {
 			out += vms[0]
 		} else {
 			fmt.Println("File", fileName, "does not Exist!")
-			out = "NOTFOUND"
+			out = "NOTFOUND\nNOTFOUND"
 		}	
 
 	} else if cmd == "ls" {
