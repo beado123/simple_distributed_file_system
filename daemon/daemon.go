@@ -573,7 +573,7 @@ func (self *Daemon) SendGetVersionRequest(cmd string) {
 	versions, id := self.GetVersionHelper(cmd)
 	localFileName, sdfsFileName, _ := ParseGetVersionRequest(cmd)
 	localFullPath := "local/" + localFileName
-	fmt.Println(localFullPath)
+	//fmt.Println(localFullPath)
 	fileName := ""
 	for i, version := range versions {
 		if i == len(versions) - 1 {
@@ -583,9 +583,11 @@ func (self *Daemon) SendGetVersionRequest(cmd string) {
 		}	
 	}
 
-	if self.VmId == id {		
+	if self.VmId == id {	
+		FileCopyToOne(localFullPath, sdfsFileName, versions)	
 		return
 	}
+
 	name := "fa18-cs425-g69-" + id + ".cs.illinois.edu"
         conn, err := net.Dial("tcp", name + ":" + self.PortTCP)
         if err != nil {
@@ -730,9 +732,39 @@ func FileCopy(source string, destination string) error{
 	return err
 }
 
-/*func FileCopyToOne(source string, destination string) {
-	
-}*/
+func FileCopyToOne(localFullPath string, sdfsFileName string, versions []string) {
+	//create new file
+	newFile, err := os.Create(localFullPath)
+        if err != nil {
+        	fmt.Println(err)
+        }
+        newFile.Close()
+
+	for _, version := range versions {
+		fileName := version + "_" + sdfsFileName	
+		sdfsFullPath := "sdfs/" + fileName
+		from, err := os.Open(sdfsFullPath)
+	        if err != nil {
+        	        fmt.Println(err)
+               		return
+        	}
+        	defer from.Close()
+		to, err := os.OpenFile(localFullPath, os.O_APPEND|os.O_WRONLY, 0666)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		defer to.Close()
+		to.WriteString(version)
+		to.WriteString("\n")
+		_, err = io.Copy(to, from)
+	        if err != nil {
+        	        fmt.Println(err)
+                	return
+        	}
+		to.WriteString("\n")
+	}	
+}
 
 func ParsePutRequest(cmd string) (localFileName string, sdfsFileName string) {
 	if strings.HasSuffix(cmd, "\n") {
