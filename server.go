@@ -73,10 +73,8 @@ func removeFromList(p string) {
 	} 
 	for i := index; i < len(lst)-1; i++ {
 		lst[i] = lst[i+1]
-		vm[i] = lst[i+1]
 	}
 	lst = lst[:len(lst)-1]
-	vm = vm[:len(vm)-1]
 }
 
 //This function sends response back to udp packet sender
@@ -273,11 +271,11 @@ func parseUDPRequest(buf []byte, length int) {
 		}
 		fmt.Fprintf(logWriter, "====DOWN crashed machine: %s\n", machine)
 		fmt.Printf("%s is down\n", machine)
-		fmt.Println("updated membership list:",lst)		
-		//delete crashed machine from membership list
 		removeFromList(machine)
+		//delete crashed machine from membership list
 		reassignFilesToOtherVM(machine)
 		sendMembershipListToPinger()
+		fmt.Println("updated membership list:",lst)		
 
 	} else if command == "LEAVE" {
 		joinMachineNum = ""
@@ -378,7 +376,7 @@ func reassignFilesToOtherVM(machine string) {
 	m[oneFile] = append(m[oneFile], lst[newVm])
 	conn, err := net.Dial("tcp", fmt.Sprintf("%s%s%s", "fa18-cs425-g69-", m[oneFile][0], ".cs.illinois.edu:5678"))
 	checkErr(err)
-	_, err = conn.Write([]byte("FAILFAIL"))
+	_, err = conn.Write([]byte("failfail"))
 	_, err = conn.Write([]byte(lst[newVm]))
 	checkErr(err)
 }
