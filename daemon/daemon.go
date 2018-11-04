@@ -333,6 +333,7 @@ func (self *Daemon) GetHelper(cmd string) (version string, id string){
 func (self *Daemon) SendGetRequest(cmd string) {
 	version, id := self.GetHelper(cmd)
 	if version == "NOTFOUND" {
+		fmt.Println("The file is not available!")
 		return
 	}
 	//send put request
@@ -500,16 +501,17 @@ func (self *Daemon) StoreRequest() {
         	fmt.Println(err)
 		return
     	}
-	m := make(map[string]int)
+	//m := make(map[string]int)
 	fmt.Println("sdfs:")
     	for _, f := range files {
-		reqArr := strings.Split(f.Name(), "_")
+		fmt.Println(f.Name())
+		/*reqArr := strings.Split(f.Name(), "_")
 		if _, ok := m[reqArr[1]]; ok {
 			
 		} else {
 			m[reqArr[1]] = 0
 			fmt.Println(reqArr[1])
-		}
+		}*/
     	}
 
 	files, err = ioutil.ReadDir("local")
@@ -520,16 +522,17 @@ func (self *Daemon) StoreRequest() {
 	if len(files) == 0 {
 		return
 	}
-        n := make(map[string]int)
+        //n := make(map[string]int)
 	fmt.Println("local:")
         for _, f := range files {
+		fmt.Println(f.Name())
                 //reqArr := strings.Split(f.Name(), "_")
-                if _, ok := n[f.Name()]; ok {
+                /*if _, ok := n[f.Name()]; ok {
 
                 } else {
                         n[f.Name()] = 0
                         fmt.Println(f.Name())
-                }
+                }*/
         }
 }
 
