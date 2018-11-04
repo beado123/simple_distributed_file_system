@@ -91,7 +91,7 @@ func writeToPinger(machineNum string, content string) {
 	} else {
 		
 		fmt.Fprintln(logWriter, "Broadcast to ", machineNum, " content: ", content)
-		conn, err := net.Dial("udp", fmt.Sprintf("%s%s", ips[machineNum], ":3456"))
+		conn, err := net.Dial("udp", fmt.Sprintf("%s%s", ips[machineNum], ":3333"))
 		checkErr(err)
 		_, err = conn.Write([]byte(content))
 		checkErr(err)
@@ -314,7 +314,7 @@ func startIntroducer() {
 	ips = make(map[string]string)
 
 	addr := net.UDPAddr{
-		Port: 3456,
+		Port: 3333,
 		IP: net.ParseIP(ip),
 	}
 	
@@ -352,7 +352,7 @@ func reassignFilesToOtherVM(machine string) {
 	}
 	fmt.Printf("files in crashed machine: %#v\n", fileArr)
 	
-	for index:=0; index<=len(fileArr); index++ {
+	for index:=0; index<len(fileArr); index++ {
 		oneFile := fileArr[index]
 		fmt.Println("vm group of", oneFile, m[oneFile])
 
@@ -368,16 +368,25 @@ func reassignFilesToOtherVM(machine string) {
 
 		//find vm other than VMs in m[oneFile]
 		newVm := -1
+		fmt.Println("lst", lst)
 		for i:=0; i<len(lst); i++ {
+			foundSame := false
 			for j:=0; j<len(m[oneFile]); j++ {
-				if lst[i] != m[oneFile][j] {
-					newVm = i
+				fmt.Print(lst[i], m[oneFile][j], " ")
+				if lst[i] == m[oneFile][j] {
+					foundSame = true
 				}
 			}
+			if foundSame == false {
+				newVm = i
+				break
+			}
 		}
+		fmt.Print("\n")
+		fmt.Println("newVm", newVm)
 		//append new VM to file vm group
 		m[oneFile] = append(m[oneFile], lst[newVm])
-		conn, err := net.Dial("tcp", fmt.Sprintf("%s%s%s", "fa18-cs425-g69-", m[oneFile][0], ".cs.illinois.edu:5678"))
+		conn, err := net.Dial("tcp", fmt.Sprintf("%s%s%s", "fa18-cs425-g69-", m[oneFile][0], ".cs.illinois.edu:6666"))
 		checkErr(err)
 		_, err = conn.Write([]byte("failfail"))
 		_, err = conn.Write([]byte(oneFile + "\n" + lst[newVm]))
@@ -404,7 +413,7 @@ func getStorePosition() [4]string{
 		pointer += 4
 	} else {
 		arr[3] = lst[pointer+4-n]
-		pointer = n-(pointer+4)
+		pointer = (pointer+4) - n
 	}
 	return arr
 }
@@ -541,7 +550,7 @@ func startMaster() {
 	//get ip address from servers list	
 	ip := getIPAddr()
 	//listen for incoming connections
-	l, err := net.Listen("tcp", ip + ":5678")
+	l, err := net.Listen("tcp", ip + ":6666")
 	printErr(err, "listening")
 	
 	//close the listener when app closes
