@@ -384,6 +384,10 @@ func reassignFilesToOtherVM(machine string) {
 		}
 		fmt.Print("\n")
 		fmt.Println("newVm", newVm)
+		if newVm == -1 {
+			fmt.Println("Cannot find VM other than", m[oneFile])
+			return	
+		}
 		//append new VM to file vm group
 		m[oneFile] = append(m[oneFile], lst[newVm])
 		conn, err := net.Dial("tcp", fmt.Sprintf("%s%s%s", "fa18-cs425-g69-", m[oneFile][0], ".cs.illinois.edu:6666"))
@@ -427,10 +431,7 @@ func parseRequest(conn net.Conn) {
 	//convert request command into array
 	reqArr := strings.Split(string(buf[:reqLen]), " ")
 	
-	for i:=0; i<len(reqArr); i++ {
-		fmt.Print(reqArr[i], " ")
-	}
-	fmt.Print("\n")
+	fmt.Println(reqArr)
 
 	cmd := reqArr[0]
 	out := ""
