@@ -501,6 +501,7 @@ func (self *Daemon) StoreRequest() {
 		return
     	}
 	m := make(map[string]int)
+	fmt.Println("sdfs:")
     	for _, f := range files {
 		reqArr := strings.Split(f.Name(), "_")
 		if _, ok := m[reqArr[1]]; ok {
@@ -517,6 +518,7 @@ func (self *Daemon) StoreRequest() {
                 return
         }
         n := make(map[string]int)
+	fmt.Println("local:")
         for _, f := range files {
                 reqArr := strings.Split(f.Name(), "_")
                 if _, ok := n[reqArr[1]]; ok {
@@ -646,10 +648,11 @@ func (self *Daemon) SendGetVersionRequest(cmd string) {
 
 //re-replicate
 func (self *Daemon) ReceiveReplicateRequestFromMaster(conn net.Conn) {
-	bufferId := make([]byte, 64)
-	reqLen, _ := conn.Read(bufferId)
-	id := string(bufferId[:reqLen])
-	fmt.Println(id)
+	buffer := make([]byte, BUFFERSIZE)
+	reqLen, _ := conn.Read(buffer)
+	reqArr := strings.Split(string(buffer[:reqLen]), "\n")
+	name := reqArr[0]
+	id := reqArr[1]
 
 	//set up connection with id VM
 	conn, err := net.Dial("tcp", "fa18-cs425-g69-" + id + ".cs.illinois.edu:" + self.PortTCP)
@@ -662,9 +665,9 @@ func (self *Daemon) ReceiveReplicateRequestFromMaster(conn net.Conn) {
 	request := "mdzzmdzz"
 	conn.Write([]byte(request))
 	//file transfer
-	files,_ := ioutil.ReadDir("sdfs")
-	for _, file := range files {
-		fullPath := "sdfs/" + file.Name()
+	//files,_ := ioutil.ReadDir("sdfs")
+	//for _, file := range files {
+		fullPath := "sdfs/" + name
 		fmt.Println(fullPath)
 		file, err := os.Open(fullPath)
 	        if err != nil {
@@ -676,7 +679,7 @@ func (self *Daemon) ReceiveReplicateRequestFromMaster(conn net.Conn) {
         		fmt.Println(err)
                 	return
        		}
-		fileName := fillString(file.Name(), 64)
+		fileName := fillString(fullPath, 64)
 		conn.Write([]byte(fileName))
 		fileSize := fillString(strconv.FormatInt(fileInfo.Size(), 10), 10)
 		conn.Write([]byte(fileSize))
@@ -688,7 +691,7 @@ func (self *Daemon) ReceiveReplicateRequestFromMaster(conn net.Conn) {
                 	}
                 	conn.Write(sendBuffer)
         	}
-	}	
+	//}	
 }
 
 func (self *Daemon) ReceiveReplicateRequestFromWorker(conn net.Conn) {
