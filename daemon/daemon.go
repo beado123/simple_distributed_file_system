@@ -189,6 +189,7 @@ func (self *Daemon) PutHelper(cmd string) (num string, ids []string) {
 } 
 
 func (self *Daemon) SendPutRequest(cmd string) {
+	start := time.Now()
 	num, reqArr := self.PutHelper(cmd)
 	//connect to each replica host
 	var wg sync.WaitGroup
@@ -264,6 +265,9 @@ func (self *Daemon) SendPutRequest(cmd string) {
 		}(id, cmd, num)
 	}	
 	wg.Wait()
+	end := time.Now()	
+	elipsed := end.Sub(start)
+	fmt.Println("insert time: ", elipsed)
 	
 	//check if receive all putACK
 	if count == len(reqArr) {
@@ -331,8 +335,10 @@ func (self *Daemon) GetHelper(cmd string) (version string, id string){
 }
 
 func (self *Daemon) SendGetRequest(cmd string) {
+	start := time.Now()
 	version, id := self.GetHelper(cmd)
 	if version == "NOTFOUND" {
+		fmt.Println("The file is not available!")
 		return
 	}
 	//send put request
@@ -377,6 +383,9 @@ func (self *Daemon) SendGetRequest(cmd string) {
                 receivedBytes += BUFFERSIZE
         }
 	fmt.Println("Received file completely!")
+	end := time.Now()	
+	elipsed := end.Sub(start)
+	fmt.Println("read time: ", elipsed)
 }
 
 func (self *Daemon) ReceiveDeleteRequest(conn net.Conn) {
@@ -500,16 +509,17 @@ func (self *Daemon) StoreRequest() {
         	fmt.Println(err)
 		return
     	}
-	m := make(map[string]int)
+	//m := make(map[string]int)
 	fmt.Println("sdfs:")
     	for _, f := range files {
-		reqArr := strings.Split(f.Name(), "_")
+		fmt.Println(f.Name())
+		/*reqArr := strings.Split(f.Name(), "_")
 		if _, ok := m[reqArr[1]]; ok {
 			
 		} else {
 			m[reqArr[1]] = 0
 			fmt.Println(reqArr[1])
-		}
+		}*/
     	}
 
 	files, err = ioutil.ReadDir("local")
@@ -520,16 +530,17 @@ func (self *Daemon) StoreRequest() {
 	if len(files) == 0 {
 		return
 	}
-        n := make(map[string]int)
+        //n := make(map[string]int)
 	fmt.Println("local:")
         for _, f := range files {
+		fmt.Println(f.Name())
                 //reqArr := strings.Split(f.Name(), "_")
-                if _, ok := n[f.Name()]; ok {
+                /*if _, ok := n[f.Name()]; ok {
 
                 } else {
                         n[f.Name()] = 0
                         fmt.Println(f.Name())
-                }
+                }*/
         }
 }
 
@@ -591,6 +602,7 @@ func (self *Daemon) GetVersionHelper(cmd string) (versions []string, id string) 
 }
 
 func (self *Daemon) SendGetVersionRequest(cmd string) {
+	start := time.Now()
 	versions, id := self.GetVersionHelper(cmd)
 	localFileName, sdfsFileName, _ := ParseGetVersionRequest(cmd)
 	localFullPath := "local/" + localFileName
@@ -647,6 +659,9 @@ func (self *Daemon) SendGetVersionRequest(cmd string) {
 		newFile.WriteString("\n")
 	}
 	fmt.Println("Received latest file completely!")
+	end := time.Now()	
+	elipsed := end.Sub(start)
+	fmt.Println("get-versions time: ", elipsed)
 }
 
 //re-replicate
