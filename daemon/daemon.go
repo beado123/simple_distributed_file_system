@@ -668,9 +668,12 @@ func (self *Daemon) ReceiveReplicateRequestFromMaster(conn net.Conn) {
 	request := "mdzzmdzz"
 	conn.Write([]byte(request))
 	//file transfer
-	//files,_ := ioutil.ReadDir("sdfs")
-	//for _, file := range files {
-		fullPath := "sdfs/" + name
+	files,_ := ioutil.ReadDir("sdfs")
+	for _, file := range files {
+		if strings.HasSuffix(file.Name(), name) == false {
+			continue
+		}
+		fullPath := "sdfs/" + file.Name()
 		fmt.Println(fullPath)
 		file, err := os.Open(fullPath)
 	        if err != nil {
@@ -694,7 +697,7 @@ func (self *Daemon) ReceiveReplicateRequestFromMaster(conn net.Conn) {
                 	}
                 	conn.Write(sendBuffer)
         	}
-	//}	
+	}	
 }
 
 func (self *Daemon) ReceiveReplicateRequestFromWorker(conn net.Conn) {
