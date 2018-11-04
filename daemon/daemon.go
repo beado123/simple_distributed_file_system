@@ -1032,7 +1032,7 @@ func (self *Daemon) TimeOutCheck() {
 			} else {	
 				self.MyMutex.Unlock()
 				elipsed := time.Now().Sub(curr_node.T).Seconds()
-				if elipsed > 0.75 {
+				if elipsed > 1.20 {
 					self.MyMutex.Lock()
 					self.MembershipList[id].State = 0	
 					self.MyMutex.Unlock()
