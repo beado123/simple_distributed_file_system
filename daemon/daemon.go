@@ -517,6 +517,9 @@ func (self *Daemon) StoreRequest() {
                 fmt.Println(err)
                 return
         }
+	if len(files) == 0 {
+		return
+	}
         n := make(map[string]int)
 	fmt.Println("local:")
         for _, f := range files {
