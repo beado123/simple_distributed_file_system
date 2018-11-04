@@ -12,9 +12,7 @@ import (
 )
 var m map[string][]string
 var version map[string]int
-var vm []string
 var pointer int
-var ipPart string
 
 //membership list of introducer
 var lst []string
@@ -248,7 +246,7 @@ func parseUDPRequest(buf []byte, length int) {
 	remoteIP := strings.Split(string(acceptMachineAddr.String()[:]), ":")
 	ips[machine] = remoteIP[0]
 
-	//fmt.Println("Parsing request...", command, machine)
+	fmt.Fprintf(logWriter, "Parsing request...", command, machine)
 
 
 	if command == "JOIN" {
@@ -352,33 +350,39 @@ func reassignFilesToOtherVM(machine string) {
 			}
 		}
 	}
-	oneFile := fileArr[0]
 	fmt.Printf("files in crashed machine: %#v\n", fileArr)
-	fmt.Println("vm group of", oneFile, m[oneFile])
-	//remove crashed machine from m[oneFile]
-	machineIndex := -1
-	for i:=0; i<len(m[oneFile]); i++ {
-		if m[oneFile][i] == machine {
-			machineIndex = i
-		}
-	}
-	m[oneFile] = append(m[oneFile][:machineIndex], m[oneFile][machineIndex+1:]...)
-	fmt.Println("after removing:",  m[oneFile])
-	//find vm other than VMs in m[oneFile]
-	newVm := -1
-	for i:=0; i<len(lst); i++ {
-		for j:=0; j<len(m[oneFile]); j++ {
-			if lst[i] != m[oneFile][j] {
-				newVm = i
+	
+	for index:=0; index<=len(fileArr); index++ {
+		oneFile := fileArr[index]
+		fmt.Println("vm group of", oneFile, m[oneFile])
+
+		//remove crashed machine from m[oneFile]
+		machineIndex := -1
+		for i:=0; i<len(m[oneFile]); i++ {
+			if m[oneFile][i] == machine {
+				machineIndex = i
 			}
 		}
+		m[oneFile] = append(m[oneFile][:machineIndex], m[oneFile][machineIndex+1:]...)
+		fmt.Println("vm froup after removing", oneFile,  m[oneFile])
+
+		//find vm other than VMs in m[oneFile]
+		newVm := -1
+		for i:=0; i<len(lst); i++ {
+			for j:=0; j<len(m[oneFile]); j++ {
+				if lst[i] != m[oneFile][j] {
+					newVm = i
+				}
+			}
+		}
+		//append new VM to file vm group
+		m[oneFile] = append(m[oneFile], lst[newVm])
+		conn, err := net.Dial("tcp", fmt.Sprintf("%s%s%s", "fa18-cs425-g69-", m[oneFile][0], ".cs.illinois.edu:5678"))
+		checkErr(err)
+		_, err = conn.Write([]byte("failfail"))
+		_, err = conn.Write([]byte(oneFile + "\n" + lst[newVm]))
+		checkErr(err)
 	}
-	m[oneFile] = append(m[oneFile], lst[newVm])
-	conn, err := net.Dial("tcp", fmt.Sprintf("%s%s%s", "fa18-cs425-g69-", m[oneFile][0], ".cs.illinois.edu:5678"))
-	checkErr(err)
-	_, err = conn.Write([]byte("failfail"))
-	_, err = conn.Write([]byte(lst[newVm]))
-	checkErr(err)
 }
 
 
@@ -531,7 +535,6 @@ func parseRequest(conn net.Conn) {
 func startMaster() {
 
 	pointer = -1
-	//vm = []string{"01","02","03","04","05","06","07","08","09"}
 	m = make(map[string][]string)
 	version = make(map[string]int)
 
