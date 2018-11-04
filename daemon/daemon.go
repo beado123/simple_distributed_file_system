@@ -510,6 +510,22 @@ func (self *Daemon) StoreRequest() {
 			fmt.Println(reqArr[1])
 		}
     	}
+
+	files, err = ioutil.ReadDir("local")
+        if err != nil {
+                fmt.Println(err)
+                return
+        }
+        n := make(map[string]int)
+        for _, f := range files {
+                reqArr := strings.Split(f.Name(), "_")
+                if _, ok := n[reqArr[1]]; ok {
+
+                } else {
+                        n[reqArr[1]] = 0
+                        fmt.Println(reqArr[1])
+                }
+        }
 }
 
 func (self *Daemon) ReceiveGetVersionRequest(conn net.Conn) {
