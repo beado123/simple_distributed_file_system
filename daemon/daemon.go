@@ -523,12 +523,12 @@ func (self *Daemon) StoreRequest() {
         n := make(map[string]int)
 	fmt.Println("local:")
         for _, f := range files {
-                reqArr := strings.Split(f.Name(), "_")
-                if _, ok := n[reqArr[1]]; ok {
+                //reqArr := strings.Split(f.Name(), "_")
+                if _, ok := n[f.Name()]; ok {
 
                 } else {
-                        n[reqArr[1]] = 0
-                        fmt.Println(reqArr[1])
+                        n[f.Name()] = 0
+                        fmt.Println(f.Name())
                 }
         }
 }
