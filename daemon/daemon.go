@@ -748,6 +748,7 @@ func (self *Daemon) ReceiveReplicateRequestFromWorker(conn net.Conn) {
 			receivedBytes += BUFFERSIZE
 		}
 	}
+	fmt.Println("re-replica done")
 }
 
 ////////////////////helper function////////////////////////////////////////////////
