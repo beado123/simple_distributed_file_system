@@ -225,6 +225,7 @@ func responsePing() {
 	}
 }
 
+//This function checks if machine is in list of alive VMs
 func checkIfExist(machine string) bool{
 	for i := 0; i < len(lst); i++ {
 		if lst[i] == machine {
@@ -295,7 +296,7 @@ func parseUDPRequest(buf []byte, length int) {
 	} 
 }
 
-//Main function that starts the server and listens for incoming UDP packets
+//This function starts the introducer and listens for incoming UDP packets
 func startIntroducer() {
 
 	
@@ -340,6 +341,7 @@ func startIntroducer() {
    }
 }
 
+//This function assigns another VM which is alive to the file that has a failed replica
 func reassignFilesToOtherVM(machine string) {
 
 	fileArr := []string{}
@@ -398,7 +400,7 @@ func reassignFilesToOtherVM(machine string) {
 	}
 }
 
-
+//This function returns a list of replicas to the new file being inserted and updates the pointer for tracking the next 4 replicas
 func getStorePosition() [4]string{
 	n := len(lst)
 	arr := [4]string{}
@@ -421,6 +423,8 @@ func getStorePosition() [4]string{
 	}
 	return arr
 }
+
+//This function parses requests of MP3(put, get, lst...) sent by VMs other than master 
 func parseRequest(conn net.Conn) {
 
 	//create a buffer to hold transferred data and read incoming data into buffer
@@ -542,6 +546,8 @@ func parseRequest(conn net.Conn) {
 	//close connection
 	conn.Close()
 }
+
+//This function starts the master and listens for incoming tcp connection
 func startMaster() {
 
 	pointer = -1
@@ -567,6 +573,8 @@ func startMaster() {
 		go parseRequest(conn)
 	}
 }
+
+//This is the main function that starts the daemon process
 func main() {
 	
 	for true {
