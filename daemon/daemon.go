@@ -84,6 +84,7 @@ func getIPAddrAndLogfile() string{
 	return ip
 }
 
+//This function fill string into specific length by :
 func fillString(retunString string, toLength int) string {
 	for {
 		lengtString := len(retunString)
@@ -131,6 +132,7 @@ func (self *Daemon) ParseRequest(conn net.Conn) {
 	}
 }
 
+//This function receive put request and write sdfs file
 func (self *Daemon) ReceivePutRequest(conn net.Conn) {
 	defer conn.Close()
 	//read file size and file name first
@@ -188,6 +190,7 @@ func (self *Daemon) PutHelper(cmd string) (num string, ids []string) {
 	return
 } 
 
+//This function handles put request
 func (self *Daemon) SendPutRequest(cmd string) {
 	start := time.Now()
 	num, reqArr := self.PutHelper(cmd)
@@ -334,6 +337,7 @@ func (self *Daemon) GetHelper(cmd string) (version string, id string){
 	return
 }
 
+//This function handles get request
 func (self *Daemon) SendGetRequest(cmd string) {
 	start := time.Now()
 	version, id := self.GetHelper(cmd)
@@ -388,6 +392,7 @@ func (self *Daemon) SendGetRequest(cmd string) {
 	fmt.Println("read time: ", elipsed)
 }
 
+//This function receive delete request and delete target sdfsfile
 func (self *Daemon) ReceiveDeleteRequest(conn net.Conn) {
 	defer conn.Close()
 	bufferFileName := make([]byte, 64)
@@ -421,6 +426,7 @@ func (self *Daemon) DeleteHelper(cmd string) (reqArr []string) {
         return
 }
 
+//This function handles delete request
 func (self *Daemon) SendDeleteRequest(cmd string) {
 	reqArr := self.DeleteHelper(cmd)
 	var wg sync.WaitGroup
@@ -474,6 +480,7 @@ func (self *Daemon) SendDeleteRequest(cmd string) {
 	}
 }
 
+//This function handles ls request
 func (self *Daemon) SendLsRequest(cmd string) {
 	//connect to master
         conn, err := net.Dial("tcp", self.Master + ":" + self.PortTCP)
@@ -503,6 +510,7 @@ func (self *Daemon) SendLsRequest(cmd string) {
 	}
 }
 
+//This function handles store request
 func (self *Daemon) StoreRequest() {
 	files, err := ioutil.ReadDir("sdfs")
     	if err != nil {
@@ -544,6 +552,7 @@ func (self *Daemon) StoreRequest() {
         }
 }
 
+//This function receives get-versions request and sends back file content
 func (self *Daemon) ReceiveGetVersionRequest(conn net.Conn) {
 	defer conn.Close()
 	bufferFileName := make([]byte, BUFFERSIZE)
@@ -601,6 +610,7 @@ func (self *Daemon) GetVersionHelper(cmd string) (versions []string, id string) 
 	return
 }
 
+//This function handles get-versions request
 func (self *Daemon) SendGetVersionRequest(cmd string) {
 	start := time.Now()
 	versions, id := self.GetVersionHelper(cmd)
@@ -664,7 +674,7 @@ func (self *Daemon) SendGetVersionRequest(cmd string) {
 	fmt.Println("get-versions time: ", elipsed)
 }
 
-//re-replicate
+//This function receive replica request from master and transfer re-replica file
 func (self *Daemon) ReceiveReplicateRequestFromMaster(conn net.Conn) {
 	buffer := make([]byte, BUFFERSIZE)
 	reqLen, _ := conn.Read(buffer)
@@ -715,6 +725,7 @@ func (self *Daemon) ReceiveReplicateRequestFromMaster(conn net.Conn) {
 	}	
 }
 
+//This function receives re-replica file
 func (self *Daemon) ReceiveReplicateRequestFromWorker(conn net.Conn) {
 	defer conn.Close()
 	for true {
@@ -752,6 +763,7 @@ func (self *Daemon) ReceiveReplicateRequestFromWorker(conn net.Conn) {
 }
 
 ////////////////////helper function////////////////////////////////////////////////
+//This function copy one file to another
 func FileCopy(source string, destination string) error{
 	fmt.Println(source)
 	fmt.Println(destination)
@@ -777,6 +789,7 @@ func FileCopy(source string, destination string) error{
 	return err
 }
 
+//This function copy several file into one file
 func FileCopyToOne(localFullPath string, sdfsFileName string, versions []string) {
 	//create new file
 	newFile, err := os.Create(localFullPath)
@@ -811,6 +824,7 @@ func FileCopyToOne(localFullPath string, sdfsFileName string, versions []string)
 	}	
 }
 
+//This function parse put request
 func ParsePutRequest(cmd string) (localFileName string, sdfsFileName string) {
 	if strings.HasSuffix(cmd, "\n") {
 		cmd = cmd[:(len(cmd) - 1)]
@@ -821,6 +835,7 @@ func ParsePutRequest(cmd string) (localFileName string, sdfsFileName string) {
 	return 
 }
 
+//This function parse get request
 func ParseGetRequest(cmd string) (localFileName string, sdfsFileName string) {
 	if strings.HasSuffix(cmd, "\n") {
                 cmd = cmd[:(len(cmd) - 1)]
@@ -831,6 +846,7 @@ func ParseGetRequest(cmd string) (localFileName string, sdfsFileName string) {
         return
 }
 
+//This function parse delete request
 func ParseDeleteRequest(cmd string) (sdfsFileName string) {
 	if strings.HasSuffix(cmd, "\n") {
                 cmd = cmd[:(len(cmd) - 1)]
@@ -840,6 +856,7 @@ func ParseDeleteRequest(cmd string) (sdfsFileName string) {
 	return
 }
 
+//This function parse get-versions request
 func ParseGetVersionRequest(cmd string) (localFileName string, sdfsFileName string, num string) {
 	if strings.HasSuffix(cmd, "\n") {
                 cmd = cmd[:(len(cmd) - 1)]
@@ -851,6 +868,7 @@ func ParseGetVersionRequest(cmd string) (localFileName string, sdfsFileName stri
         return
 }
 
+//This function parse delete request
 func DeleteSdfsfile(fileName string) {
 	files,_ := ioutil.ReadDir("sdfs")
         for _, file := range files {
@@ -864,6 +882,7 @@ func DeleteSdfsfile(fileName string) {
 	}
 }
 
+//This function clean out sdfs request
 func (self *Daemon) CleanOutSdfs() {
 	if _, err := os.Stat("sdfs"); os.IsNotExist(err) {
     		os.Mkdir("sdfs", 0777)
