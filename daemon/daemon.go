@@ -1030,14 +1030,26 @@ func (self *Daemon) TimeOutCheck() {
 			if curr_node.State == 0 {
 				self.MyMutex.Unlock()
 				continue;
-			} else {	
+			} else if curr_node.State == 1 {	
 				self.MyMutex.Unlock()
 				elipsed := time.Now().Sub(curr_node.T).Seconds()
 				if elipsed > 0.75 {
 					self.MyMutex.Lock()
-					self.MembershipList[id].State = 0	
+					self.MembershipList[id].State = 2	
 					self.MyMutex.Unlock()
-					go self.SendDOWN(id)
+				}
+			} else {
+				self.MyMutex.Unlock()
+                                elipsed := time.Now().Sub(curr_node.T).Seconds()
+				if elipsed > 1.50 {
+					self.MyMutex.Lock()
+                                        self.MembershipList[id].State = 0
+                                        self.MyMutex.Unlock()
+                                        go self.SendDOWN(id)
+				} else {
+					self.MyMutex.Lock()
+                                        self.MembershipList[id].State = 1
+                                        self.MyMutex.Unlock()					
 				}
 			}
 		}
