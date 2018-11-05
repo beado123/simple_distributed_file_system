@@ -270,9 +270,9 @@ func parseUDPRequest(buf []byte, length int) {
 		fmt.Fprintf(logWriter, "====DOWN crashed machine: %s\n", machine)
 		fmt.Printf("%s is down\n", machine)
 		removeFromList(machine)
+		sendMembershipListToPinger()
 		//delete crashed machine from membership list
 		reassignFilesToOtherVM(machine)
-		sendMembershipListToPinger()
 		fmt.Println("updated membership list:",lst)		
 
 	} else if command == "LEAVE" {
@@ -386,7 +386,7 @@ func reassignFilesToOtherVM(machine string) {
 		fmt.Println("newVm", newVm)
 		if newVm == -1 {
 			fmt.Println("Cannot find VM other than", m[oneFile])
-			return	
+			//return	
 		}
 		//append new VM to file vm group
 		m[oneFile] = append(m[oneFile], lst[newVm])
