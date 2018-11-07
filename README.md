@@ -1,4 +1,4 @@
-# MP3_CS425
+# Simple Distributed File System
 
  ## To Start Master
  ```
